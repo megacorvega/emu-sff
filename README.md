@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="./assets/emu-sff-con.svg" alt="Emu Badge" width="150">
+  <img src="./assets/emu-sff-icon.svg" alt="Emu Badge" width="150">
 
   <h1>emu-sff</h1>
 

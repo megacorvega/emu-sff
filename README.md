@@ -4,7 +4,7 @@
 
   <h1>emu-sff</h1>
 
-  <p>Emulating your favorites, on small hardware</p>
+  <p>Emulate your favorites, geared for SFF PCs</p>
 
 </div>
 

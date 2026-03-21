@@ -1,6 +1,12 @@
-# emu-sff
+<div align="center">
 
-A streamlined setup utility to serve game files over a local Ethernet connection. 
+  <img src="./assets/emu-sff-con.svg" alt="Emu Badge" width="150">
+
+  <h1>emu-sff</h1>
+
+  <p>Emulating your favorites, on small hardware</p>
+
+</div>
 
 `emu-sff` configures a Linux host machine to act as an isolated file host for legacy consoles (like the PlayStation 2). Using Docker, it spins up a DHCP server and an older-protocol SMB share (SMBv1), while automatically handling power-management tweaks to ensure fast and reliable game loading over the network.
 

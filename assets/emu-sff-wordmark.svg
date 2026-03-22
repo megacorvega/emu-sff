@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="120" viewBox="0 0 720 120" role="img" aria-labelledby="title desc">
+  <title id="title">emu-sff wordmark</title>
+  <desc id="desc">A monospace-styled emu-sff wordmark rendered as an SVG.</desc>
+  <rect width="720" height="120" fill="none"/>
+  <g fill="#f4e8cf">
+    <path d="M40 28h72v14H54v19h48v14H54v21h58v14H40z"/>
+    <path d="M134 28h14l18 24 18-24h14v82h-14V50l-18 24-18-24v60h-14z"/>
+    <path d="M226 28h14v54c0 9 3 14 9 14h36c6 0 9-5 9-14V28h14v57c0 17-8 25-23 25h-36c-15 0-23-8-23-25z"/>
+    <path d="M348 28h72v14h-58v19h48v14h-48v35h-14z"/>
+    <path d="M442 59h32v12h-32z"/>
+    <path d="M496 28h72v14h-58v19h48v14h-48v35h-14z"/>
+    <path d="M590 28h72v14h-58v19h48v14h-48v21h58v14h-72z"/>
+  </g>
+</svg>

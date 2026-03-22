@@ -2,7 +2,7 @@
 
   <img src="./assets/emu-sff-icon.svg" alt="Emu Badge" width="150">
 
-  <h1 style="font-family: 'Cascadia Code', monospace;">emu-sff</h1>
+  <img src="./assets/emu-sff-wordmark.svg" alt="emu-sff" width="360">
 
   <p>Setup utility for emulation, built with sff PCs in mind.</p>
 

@@ -4,7 +4,7 @@
 
   <h1>emu-sff</h1>
 
-  <p>Setup utility for emulation, built with sff/mini PCs in mind.</p>
+  <p>Setup utility for emulation, built with sff PCs in mind.</p>
 
 </div>
 

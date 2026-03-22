@@ -1,7 +1,7 @@
 <div align="center">
 
   <img src="./assets/emu-sff-icon.svg" alt="Emu Badge" width="150">
-
+  <br>
   <img src="./assets/emu-sff-wordmark.svg" alt="emu-sff" width="360">
 
   <p>Setup utility for emulation, built with sff PCs in mind.</p>

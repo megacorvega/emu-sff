@@ -197,7 +197,7 @@ calculate_ui_layout() {
     local term_columns desired_width minimum_width
 
     term_columns="$(terminal_columns)"
-    desired_width=88
+    desired_width=76
     minimum_width=74
 
     UI_COMPACT_MODE=0
@@ -207,10 +207,7 @@ calculate_ui_layout() {
         UI_INNER_WIDTH=9
         UI_LEFT_WIDTH=0
         UI_RIGHT_WIDTH=0
-        UI_LEFT_MARGIN=$(((term_columns - UI_TOTAL_WIDTH) / 2))
-        if (( UI_LEFT_MARGIN < 0 )); then
-            UI_LEFT_MARGIN=0
-        fi
+        UI_LEFT_MARGIN=0
         return 0
     fi
 
@@ -219,9 +216,9 @@ calculate_ui_layout() {
         UI_TOTAL_WIDTH="${term_columns}"
     fi
 
-    UI_LEFT_MARGIN=$(((term_columns - UI_TOTAL_WIDTH) / 2))
+    UI_LEFT_MARGIN=0
     UI_INNER_WIDTH=$((UI_TOTAL_WIDTH - 4))
-    UI_LEFT_WIDTH=$(((UI_INNER_WIDTH - 3) * 3 / 5))
+    UI_LEFT_WIDTH=$(((UI_INNER_WIDTH - 3) * 11 / 20))
     UI_RIGHT_WIDTH=$((UI_INNER_WIDTH - UI_LEFT_WIDTH - 3))
 }
 

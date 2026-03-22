@@ -16,10 +16,11 @@ DEFAULT_SUPER_MODE_NAME="2560x240_60.00"
 DEFAULT_SUPER_MODELINE="50.00 2560 2720 2960 3200 240 244 246 261 -hsync -vsync"
 
 COLOR_RESET=$'\033[0m'
-COLOR_PANEL=$'\033[38;5;173m'
-COLOR_MUTED=$'\033[38;5;245m'
-COLOR_TEXT=$'\033[38;5;252m'
-COLOR_LOGO=$'\033[38;5;209m'
+COLOR_PANEL=$'\033[38;5;95m'
+COLOR_MUTED=$'\033[38;5;244m'
+COLOR_TEXT=$'\033[38;5;188m'
+COLOR_LOGO=$'\033[38;5;131m'
+COLOR_TITLE=$'\033[38;5;180m'
 
 print_info() {
     printf '[INFO] %s\n' "$1"
@@ -156,6 +157,10 @@ write_file_if_missing_notice() {
     print_info "Generated ${path}"
 }
 
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 terminal_columns() {
     if command -v tput >/dev/null 2>&1; then
         tput cols 2>/dev/null || echo 100
@@ -180,8 +185,17 @@ repeat_char() {
 pad_text() {
     local width="$1"
     local text="$2"
+    local text_length
 
-    printf '%-*.*s' "${width}" "${width}" "${text}"
+    text_length=${#text}
+
+    if (( text_length > width )); then
+        printf '%s' "${text:0:width}"
+        return
+    fi
+
+    printf '%s' "${text}"
+    repeat_char " " $((width - text_length))
 }
 
 print_panel_line() {
@@ -213,4 +227,117 @@ print_logo_panel_line() {
     printf "${COLOR_PANEL}|${COLOR_RESET} ${COLOR_LOGO}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET}\n" \
         "$(pad_text "${left_width}" "${logo_text}")" \
         "$(pad_text "${right_width}" "${right_text}")"
+}
+
+menu_cpu_usage() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if command_exists top; then
+            top -l 1 2>/dev/null | awk -F'[:,%]+' '/CPU usage/ { printf "%.1f%% used", 100 - $(NF-1); exit }'
+        fi
+        if command_exists uptime; then
+            uptime 2>/dev/null | awk -F'load averages?: ' 'NF > 1 { split($2, parts, " "); printf "load %s", parts[1]; exit }'
+        fi
+    elif command_exists top; then
+        top -bn1 2>/dev/null | awk -F'[, ]+' '/^%?Cpu\(s\)/ { for (i = 1; i <= NF; i++) if ($i == "id,") { printf "%.1f%% used", 100 - $(i-1); exit } }'
+    fi
+}
+
+menu_ram_usage() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        vm_stat 2>/dev/null | awk '
+            BEGIN { page_size = 16384 }
+            /Pages free/ { free = $3 }
+            /Pages active/ { active = $3 }
+            /Pages inactive/ { inactive = $3 }
+            /Pages wired down/ { wired = $4 }
+            END {
+                gsub(/\./, "", free)
+                gsub(/\./, "", active)
+                gsub(/\./, "", inactive)
+                gsub(/\./, "", wired)
+                used = (active + inactive + wired) * page_size / 1024 / 1024 / 1024
+                avail = free * page_size / 1024 / 1024 / 1024
+                printf "%.1f GiB used, %.1f GiB free", used, avail
+            }
+        '
+    elif command_exists free; then
+        free -h 2>/dev/null | awk '/^Mem:/ { printf "%s / %s", $3, $2; exit }'
+    fi
+}
+
+menu_storage_usage() {
+    df -h "${EMU_SFF_ROOT}" 2>/dev/null | awk 'NR==2 { printf "%s used of %s", $3, $2; exit }'
+}
+
+menu_default_interface() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}'
+    elif command_exists ip; then
+        ip route show default 2>/dev/null | awk '/default/ {print $5; exit}'
+    fi
+}
+
+menu_network_speed() {
+    local iface media
+
+    iface="$(menu_default_interface)"
+    if [[ -z "${iface}" ]]; then
+        printf 'n/a'
+        return
+    fi
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        media="$(ifconfig "${iface}" 2>/dev/null | awk -F': ' '/media:/{print $2; exit}')"
+        if [[ -n "${media}" ]]; then
+            printf '%s %s' "${iface}" "${media}"
+        else
+            printf '%s active' "${iface}"
+        fi
+    elif [[ -r "/sys/class/net/${iface}/speed" ]]; then
+        printf '%s %s Mb/s' "${iface}" "$(cat "/sys/class/net/${iface}/speed" 2>/dev/null)"
+    else
+        printf '%s active' "${iface}"
+    fi
+}
+
+menu_system_summary_lines() {
+    local docker_state state_state lan_state crt_state
+
+    docker_state="Docker: unavailable"
+    if command_exists systemctl; then
+        if systemctl is-active --quiet docker 2>/dev/null; then
+            docker_state="Docker: active"
+        else
+            docker_state="Docker: inactive"
+        fi
+    elif command_exists docker; then
+        docker_state="Docker: installed"
+    fi
+
+    if [[ -f "${EMU_SFF_STATE_FILE}" ]]; then
+        state_state="Config state: present"
+    else
+        state_state="Config state: missing"
+    fi
+
+    if command_exists ip && ip addr show 2>/dev/null | grep -q '192.168.2.1/24'; then
+        lan_state="LAN IP: 192.168.2.1 set"
+    else
+        lan_state="LAN IP: not set"
+    fi
+
+    load_state_file >/dev/null 2>&1 || true
+    if [[ -n "${DESKTOP_USER:-}" ]]; then
+        local desktop_home
+        desktop_home="$(desktop_user_home "${DESKTOP_USER}" 2>/dev/null || true)"
+        if [[ -n "${desktop_home}" && -f "${desktop_home}/.config/emu-sff/retroarch-crt.cfg" ]]; then
+            crt_state="CRT config: generated"
+        else
+            crt_state="CRT config: missing"
+        fi
+    else
+        crt_state="CRT config: unknown"
+    fi
+
+    printf '%s\n%s\n%s\n%s\n' "${docker_state}" "${state_state}" "${lan_state}" "${crt_state}"
 }

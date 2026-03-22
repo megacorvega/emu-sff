@@ -202,6 +202,22 @@ generate_crt_stack() {
     print_warn "The launcher and mode script will refuse to run while CRT_ARMED=0 in ${safety_path}."
 }
 
+install_cli_launcher() {
+    print_info "Installing emu-sff command launcher."
+
+    rm -rf "${EMU_SFF_INSTALL_DIR}"
+    ensure_directory "${EMU_SFF_INSTALL_DIR}"
+    cp -R "${EMU_SFF_ROOT}/lib" "${EMU_SFF_INSTALL_DIR}/lib"
+    cp -R "${EMU_SFF_ROOT}/templates" "${EMU_SFF_INSTALL_DIR}/templates"
+    install -m 0755 "${EMU_SFF_ROOT}/emu-sff.sh" "${EMU_SFF_INSTALL_DIR}/emu-sff.sh"
+
+    render_template \
+        "${EMU_SFF_TEMPLATES_DIR}/emu-sff-launcher.sh.tpl" \
+        "${EMU_SFF_LAUNCHER_PATH}" \
+        "EMU_SFF_SCRIPT_PATH=${EMU_SFF_INSTALL_DIR}/emu-sff.sh"
+    chmod 0755 "${EMU_SFF_LAUNCHER_PATH}"
+}
+
 do_setup() {
     echo "======================================"
     echo "   emu-sff - Modular Setup"
@@ -211,34 +227,40 @@ do_setup() {
     ensure_directory "${CONFIG_PATH}"
     save_state_file
 
-    if prompt_step "[1/5] Install dependencies" "Install Docker Engine, RetroArch, xrandr tooling, and Wi-Fi utilities."; then
+    if prompt_step "[1/6] Install dependencies" "Install Docker Engine, RetroArch, xrandr tooling, and Wi-Fi utilities."; then
         install_dependencies
     else
         print_warn "Skipping dependency installation."
     fi
 
-    if prompt_step "[2/5] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
+    if prompt_step "[2/6] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
         configure_networking
     else
         print_warn "Skipping static IP configuration."
     fi
 
-    if prompt_step "[3/5] Disable Wi-Fi power saving" "Create a systemd service that keeps ${WLAN_IF} in power_save off mode."; then
+    if prompt_step "[3/6] Disable Wi-Fi power saving" "Create a systemd service that keeps ${WLAN_IF} in power_save off mode."; then
         configure_wifi_power_service
     else
         print_warn "Skipping Wi-Fi power configuration."
     fi
 
-    if prompt_step "[4/5] Configure SMB/DHCP services" "Generate container config and start Samba plus dnsmasq."; then
+    if prompt_step "[4/6] Configure SMB/DHCP services" "Generate container config and start Samba plus dnsmasq."; then
         generate_container_configs
     else
         print_warn "Skipping Docker service configuration."
     fi
 
-    if prompt_step "[5/5] Configure CRT + RetroArch" "Generate a reusable 2560x240 super-resolution xrandr script, RetroArch config, launcher, and user service."; then
+    if prompt_step "[5/6] Configure CRT + RetroArch" "Generate a reusable 2560x240 super-resolution xrandr script, RetroArch config, launcher, and user service."; then
         generate_crt_stack
     else
         print_warn "Skipping CRT and RetroArch configuration."
+    fi
+
+    if prompt_step "[6/6] Install emu-sff command launcher" "Install /usr/local/bin/emu-sff so you can launch the utility from anywhere via sudo/systemd-run."; then
+        install_cli_launcher
+    else
+        print_warn "Skipping command launcher installation."
     fi
 
     echo

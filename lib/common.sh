@@ -6,6 +6,8 @@ EMU_SFF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EMU_SFF_TEMPLATES_DIR="${EMU_SFF_ROOT}/templates"
 EMU_SFF_STATE_DIR="/etc/emu-sff"
 EMU_SFF_STATE_FILE="${EMU_SFF_STATE_DIR}/emu-sff.env"
+EMU_SFF_INSTALL_DIR="/usr/local/lib/emu-sff"
+EMU_SFF_LAUNCHER_PATH="/usr/local/bin/emu-sff"
 
 DEFAULT_CONFIG_PATH="/opt/emu-sff"
 DEFAULT_STORAGE_PATH="/srv/emu-sff/storage"

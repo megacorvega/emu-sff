@@ -94,6 +94,7 @@ The setup flow can perform five independent steps:
 3. Disable Wi-Fi power saving with a persistent systemd service.
 4. Generate and start the Samba + dnsmasq container stack.
 5. Generate CRT/RetroArch scripts and a user service for mode application.
+6. Optionally install `/usr/local/bin/emu-sff`, which launches the utility from anywhere using `sudo` plus `systemd-run --pty`.
 
 ## Status and uninstall
 
@@ -108,6 +109,22 @@ Remove generated configuration:
 ```bash
 sudo ./emu-sff.sh uninstall
 ```
+
+## Global launcher
+
+If you enable the launcher step during setup, the installer copies the main script to:
+
+- `/usr/local/lib/emu-sff/emu-sff.sh`
+
+and installs a wrapper at:
+
+- `/usr/local/bin/emu-sff`
+
+That wrapper:
+
+- prompts for `sudo` when needed
+- starts the utility in a transient systemd unit with `systemd-run --pty`
+- returns you to the same terminal when the utility exits
 
 ## Testing notes
 

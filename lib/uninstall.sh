@@ -70,6 +70,9 @@ do_uninstall() {
         rm -f "${EMU_SFF_STATE_FILE}"
     fi
 
+    rm -f "${EMU_SFF_LAUNCHER_PATH}"
+    rm -rf "${EMU_SFF_INSTALL_DIR}"
+
     print_info "Uninstall complete."
     pause_for_keypress "Press any key to return to the utility"
 }

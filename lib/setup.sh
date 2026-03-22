@@ -218,6 +218,16 @@ install_cli_launcher() {
     chmod 0755 "${EMU_SFF_LAUNCHER_PATH}"
 }
 
+do_refresh() {
+    print_info "Refreshing emu-sff command launcher."
+    install_cli_launcher
+    print_info "Launcher refresh complete."
+
+    if [[ -t 0 ]]; then
+        pause_for_keypress "Press any key to return"
+    fi
+}
+
 do_setup() {
     echo "======================================"
     echo "   emu-sff - Modular Setup"

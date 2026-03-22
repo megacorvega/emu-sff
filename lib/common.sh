@@ -39,6 +39,12 @@ BOX_TEE_UP="┴"
 BOX_TEE_RIGHT="├"
 BOX_TEE_LEFT="┤"
 BOX_CROSS="┼"
+UI_TOTAL_WIDTH=0
+UI_INNER_WIDTH=0
+UI_LEFT_WIDTH=0
+UI_RIGHT_WIDTH=0
+UI_LEFT_MARGIN=0
+UI_COMPACT_MODE=0
 
 print_info() {
     printf '[INFO] %s\n' "$1"
@@ -185,6 +191,50 @@ terminal_columns() {
     else
         echo 100
     fi
+}
+
+calculate_ui_layout() {
+    local term_columns desired_width minimum_width
+
+    term_columns="$(terminal_columns)"
+    desired_width=88
+    minimum_width=74
+
+    UI_COMPACT_MODE=0
+    if (( term_columns < minimum_width )); then
+        UI_COMPACT_MODE=1
+        UI_TOTAL_WIDTH=11
+        UI_INNER_WIDTH=9
+        UI_LEFT_WIDTH=0
+        UI_RIGHT_WIDTH=0
+        UI_LEFT_MARGIN=$(((term_columns - UI_TOTAL_WIDTH) / 2))
+        if (( UI_LEFT_MARGIN < 0 )); then
+            UI_LEFT_MARGIN=0
+        fi
+        return 0
+    fi
+
+    UI_TOTAL_WIDTH="${desired_width}"
+    if (( term_columns < desired_width )); then
+        UI_TOTAL_WIDTH="${term_columns}"
+    fi
+
+    UI_LEFT_MARGIN=$(((term_columns - UI_TOTAL_WIDTH) / 2))
+    UI_INNER_WIDTH=$((UI_TOTAL_WIDTH - 4))
+    UI_LEFT_WIDTH=$(((UI_INNER_WIDTH - 3) * 3 / 5))
+    UI_RIGHT_WIDTH=$((UI_INNER_WIDTH - UI_LEFT_WIDTH - 3))
+}
+
+print_ui_margin() {
+    if (( UI_LEFT_MARGIN > 0 )); then
+        printf '%*s' "${UI_LEFT_MARGIN}" ""
+    fi
+}
+
+render_compact_box() {
+    printf "\033[2J\033[H"
+    print_ui_margin
+    printf "${COLOR_PANEL}${BOX_TOP_LEFT}${BOX_HORIZONTAL} emu-sff ${BOX_HORIZONTAL}${BOX_TOP_RIGHT}${COLOR_RESET}\n"
 }
 
 enter_alt_screen() {

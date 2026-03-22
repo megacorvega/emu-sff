@@ -96,6 +96,12 @@ The setup flow can perform five independent steps:
 5. Generate CRT/RetroArch scripts and a user service for mode application.
 6. Optionally install `/usr/local/bin/emu-sff`, which launches the utility from anywhere using `sudo` plus `systemd-run --pty`.
 
+If you later change the repo and want to refresh the installed global launcher bundle without rerunning setup, use:
+
+```bash
+sudo ./emu-sff.sh refresh
+```
+
 ## Status and uninstall
 
 Check the current state:

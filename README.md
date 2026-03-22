@@ -4,55 +4,111 @@
 
   <h1>emu-sff</h1>
 
-  <p>Emulate your favorites, geared for SFF PCs</p>
+  <p>Small-form-factor Linux host for ROM serving, SMB intake, and CRT-focused emulation.</p>
 
 </div>
 
-`emu-sff` configures a Linux host machine to act as an isolated file host for legacy consoles (like the PlayStation 2). Using Docker, it spins up a DHCP server and an older-protocol SMB share (SMBv1), while automatically handling power-management tweaks to ensure fast and reliable game loading over the network.
+`emu-sff` configures one Linux machine to handle three jobs:
 
-## Prerequisites
-* A Debian/Ubuntu-based Linux machine (uses `apt-get` and `netplan`).
-* Root/sudo privileges.
-* An active Wi-Fi connection (WLAN) and an Ethernet port (LAN) connected to your console.
+1. Serve legacy ROMs over Ethernet with an isolated DHCP + SMB stack.
+2. Keep Wi-Fi performant for inbound game-file transfers.
+3. Launch RetroArch against a CRT-friendly 15 kHz super resolution pipeline.
 
-## Usage
+The repo is now organized so [`emu-sff.sh`](/Users/dd/emu-sff/emu-sff.sh) stays the main entrypoint and delegates to focused modules under [`lib/`](/Users/dd/emu-sff/lib) and reusable templates under [`templates/`](/Users/dd/emu-sff/templates).
 
-To configure your system and start the services, run the setup script with root privileges:
+The active install state is persisted at `/etc/emu-sff/emu-sff.env` so `status` and `uninstall` can find the configured paths and CRT settings without re-entering everything.
+
+## Structure
+
+- [`emu-sff.sh`](/Users/dd/emu-sff/emu-sff.sh): main CLI entrypoint.
+- [`lib/common.sh`](/Users/dd/emu-sff/lib/common.sh): shared helpers, defaults, template rendering, and persisted state handling.
+- [`lib/setup.sh`](/Users/dd/emu-sff/lib/setup.sh): interactive setup flow.
+- [`lib/status.sh`](/Users/dd/emu-sff/lib/status.sh): service and config checks.
+- [`lib/uninstall.sh`](/Users/dd/emu-sff/lib/uninstall.sh): generated-file cleanup.
+- [`templates/`](/Users/dd/emu-sff/templates): auditable config templates for Docker, systemd, `xrandr`, and RetroArch.
+
+## CRT path
+
+The CRT workflow assumes:
+
+- Debian/Ubuntu on X11.
+- A GPU/driver stack that accepts custom `xrandr` modelines.
+- A physical converter chain that can safely accept a 15 kHz signal.
+
+During setup, the script generates these user-level files for the selected desktop user:
+
+- `~/.config/emu-sff/apply-crt-mode.sh`
+- `~/.config/emu-sff/crt-safety.conf`
+- `~/.config/emu-sff/arm-crt-output.sh`
+- `~/.config/emu-sff/disarm-crt-output.sh`
+- `~/.config/emu-sff/retroarch-crt.cfg`
+- `~/.config/emu-sff/launch-retroarch-crt.sh`
+- `~/.config/systemd/user/emu-sff-crt-mode.service`
+
+The default target mode is `2560x240_60.00` with this modeline:
+
+```text
+50.00 2560 2720 2960 3200 240 244 246 261 -hsync -vsync
+```
+
+That is a conservative starting point for a 15 kHz super resolution workflow, not a guarantee for every GPU, converter, or CRT. If your chain needs different porch/sync timings, edit the generated CRT mode script after setup.
+
+## CRT safety gate
+
+The CRT path is intentionally disarmed by default:
+
+- setup generates the user service, but does not enable it
+- `launch-retroarch-crt.sh` refuses to start if the CRT path is disarmed
+- `apply-crt-mode.sh` refuses to touch the output unless:
+  - `CRT_ARMED=1` in `~/.config/emu-sff/crt-safety.conf`
+  - the configured modeline computes to a horizontal/vertical sync window that looks 15 kHz-safe
+
+Arm and disarm helpers are generated so you can explicitly control when the CRT path is allowed to drive the display.
+
+This mitigates accidental mode switches caused by this project, but it cannot control firmware, bootloader, display manager, or desktop modes that happen before the user-level scripts run. For first bring-up, keep the CRT disconnected or behind a known-safe switch until the Linux session and modeline are verified.
+
+## Setup
+
+Run the setup script as root:
 
 ```bash
 chmod +x emu-sff.sh
 sudo ./emu-sff.sh setup
 ```
 
-During execution, the script will prompt you to define your LAN interface, WLAN interface, storage path (where your games are located), and configuration path.
+Setup prompts for:
 
-## What the Setup Script Does
+- LAN interface
+- WLAN interface
+- storage path
+- generated-config path
+- desktop user
+- CRT output name
+- super resolution width/height
+- `xrandr` mode name and modeline
 
-The `emu-sff.sh` script is interactive and will ask for your consent before proceeding with each of the following configuration steps:
+The setup flow can perform five independent steps:
 
-1. **Installs Dependencies**: Configures the official Docker apt repository to install `docker-ce` and `docker-compose-plugin`, and installs `wireless-tools` from the standard repositories.
-2. **Configures Static IP**: Uses Netplan to assign a static IP address (`192.168.2.1`) to your specified Ethernet (LAN) interface so the console can connect directly.
-3. **Disables Wi-Fi Power Management**: Turns off power-saving features on your Wi-Fi interface to fix slow SMB transfer speeds, and creates a systemd service to keep this setting applied after reboots.
-4. **Configures and Starts Docker Services**: 
-    * Generates a `dnsmasq.conf` file to act as an isolated DHCP server.
-    * Generates an `smb.conf` file configured with the NT1 protocol (SMBv1), which is required for legacy console compatibility.
-    * Creates a `docker-compose.yml` file and spins up the Samba and Dnsmasq containers in the background.
+1. Install Docker, RetroArch, `xrandr` tooling, and Wi-Fi utilities.
+2. Configure a static `192.168.2.1/24` address on the LAN interface.
+3. Disable Wi-Fi power saving with a persistent systemd service.
+4. Generate and start the Samba + dnsmasq container stack.
+5. Generate CRT/RetroArch scripts and a user service for mode application.
 
-## Checking Status & Uninstalling
+## Status and uninstall
 
-You can easily check the health and status of all components (Docker, Samba, DHCP, IP assignment, and Wi-Fi power management) using the script.
+Check the current state:
 
 ```bash
 sudo ./emu-sff.sh status
 ```
 
-To safely remove the Docker containers, Netplan configuration, and restore your Wi-Fi power management, run:
+Remove generated configuration:
+
 ```bash
 sudo ./emu-sff.sh uninstall
 ```
 
-## Connection Details
+## Testing notes
 
-Once the setup is complete, your retro console can connect using the following details:
-* **IP Gateway:** `192.168.2.1`
-* **SMB Share Path:** `\\192.168.2.1\share`
+This repository can be syntax-checked on any machine, but the networking, Docker, systemd, and CRT mode portions need validation on the target Linux box with the real display chain attached.

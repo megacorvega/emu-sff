@@ -4,7 +4,7 @@
 
   <h1>emu-sff</h1>
 
-  <p>Small-form-factor Linux host for ROM serving, SMB intake, and CRT-focused emulation.</p>
+  <p>Setup utility for emulation, built with sff PCs in mind.</p>
 
 </div>
 

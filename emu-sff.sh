@@ -48,7 +48,7 @@ show_menu() {
     printf "\033[2J\033[H"
     printf "${COLOR_PANEL}.%s.${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
     print_panel_line "${left_width}" "${right_width}" "emu-sff utility" "Current commands"
-    print_panel_line "${left_width}" "${right_width}" "" "1. setup / install"
+    print_panel_line "${left_width}" "${right_width}" "                            " "1. setup / install"
     print_logo_panel_line "${left_width}" "${right_width}" "            ██████     " "2. status"
     print_logo_panel_line "${left_width}" "${right_width}" "           ███   ██    " "3. uninstall"
     print_logo_panel_line "${left_width}" "${right_width}" "             ███       " "4. exit"

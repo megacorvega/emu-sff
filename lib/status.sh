@@ -26,89 +26,155 @@ check_crt_armed() {
     [[ -f "${safety_path}" ]] && grep -q '^CRT_ARMED=1$' "${safety_path}"
 }
 
-do_status() {
-    load_state_file || true
+status_value() {
+    local state="$1"
+    local detail="${2:-}"
 
-    echo -e "\e[32m"
-    cat <<'EOF'
- _____ __  __ _   _         ____  _____ _____
-| ____|  \/  | | | |       / ___||  ___|  ___|
-|  _| | |\/| | | | |  ___  \___ \| |_  | |_
-| |___| |  | | |_| | |___|  ___) |  _| |  _|
-|_____|_|  |_|\___/        |____/|_|   |_|
-EOF
-    echo -e "\e[0m"
+    case "${state}" in
+        OK)
+            printf 'OK'
+            ;;
+        WARN)
+            printf 'WARN'
+            ;;
+        *)
+            printf 'ERROR'
+            ;;
+    esac
 
-    if systemctl is-active --quiet docker; then
-        print_status "Docker Engine:           " "OK"
+    if [[ -n "${detail}" ]]; then
+        printf ' - %s' "${detail}"
+    fi
+}
+
+collect_status_rows() {
+    local docker_state samba_state dhcp_state lan_state wifi_state retroarch_state
+    local service_state armed_state detail
+
+    if command_exists systemctl && systemctl is-active --quiet docker 2>/dev/null; then
+        docker_state="OK"
     else
-        print_status "Docker Engine:           " "ERROR"
+        docker_state="ERROR"
     fi
 
-    if check_docker_container "emu-samba"; then
-        print_status "Samba container:         " "OK"
+    if command_exists docker && check_docker_container "emu-samba"; then
+        samba_state="OK"
     else
-        print_status "Samba container:         " "ERROR"
+        samba_state="ERROR"
     fi
 
-    if check_docker_container "emu-dhcp"; then
-        print_status "Dnsmasq container:       " "OK"
+    if command_exists docker && check_docker_container "emu-dhcp"; then
+        dhcp_state="OK"
     else
-        print_status "Dnsmasq container:       " "ERROR"
+        dhcp_state="ERROR"
     fi
 
-    if ip addr show | grep -q '192.168.2.1/24'; then
-        print_status "Static LAN IP:           " "OK"
+    if command_exists ip && ip addr show 2>/dev/null | grep -q '192.168.2.1/24'; then
+        lan_state="OK"
+        detail="192.168.2.1 configured"
     else
-        print_status "Static LAN IP:           " "ERROR"
+        lan_state="ERROR"
+        detail="192.168.2.1 missing"
     fi
+    printf 'Docker engine|%s|%s\n' "${docker_state}" ""
+    printf 'Samba container|%s|%s\n' "${samba_state}" ""
+    printf 'Dnsmasq container|%s|%s\n' "${dhcp_state}" ""
+    printf 'Static LAN IP|%s|%s\n' "${lan_state}" "${detail}"
 
-    if systemctl is-active --quiet wifi-power-save-off.service; then
-        print_status "Wi-Fi power override:    " "OK"
+    if command_exists systemctl && systemctl is-active --quiet wifi-power-save-off.service 2>/dev/null; then
+        wifi_state="OK"
+        detail="power save disabled"
     else
-        print_status "Wi-Fi power override:    " "WARN"
+        wifi_state="WARN"
+        detail="service inactive"
     fi
+    printf 'Wi-Fi override|%s|%s\n' "${wifi_state}" "${detail}"
 
-    if command -v retroarch >/dev/null 2>&1; then
-        print_status "RetroArch binary:        " "OK"
+    if command_exists "retroarch"; then
+        retroarch_state="OK"
     else
-        print_status "RetroArch binary:        " "ERROR"
+        retroarch_state="ERROR"
     fi
+    printf 'RetroArch binary|%s|%s\n' "${retroarch_state}" ""
 
     if [[ -n "${DESKTOP_USER:-}" ]] && check_user_service_file; then
-        print_status "CRT user service file:   " "OK"
+        service_state="OK"
     else
-        print_status "CRT user service file:   " "WARN"
+        service_state="WARN"
     fi
+    printf 'CRT user service|%s|%s\n' "${service_state}" ""
 
     if [[ -n "${DESKTOP_USER:-}" ]] && check_crt_armed; then
-        print_status "CRT output armed:        " "WARN"
+        armed_state="WARN"
+        detail="output armed"
     else
-        print_status "CRT output armed:        " "OK"
+        armed_state="OK"
+        detail="output disarmed"
+    fi
+    printf 'CRT armed state|%s|%s\n' "${armed_state}" "${detail}"
+}
+
+render_status_screen() {
+    local columns inner_width left_width right_width
+    local cpu_usage ram_usage storage_usage network_speed
+    local row_index name state detail
+    local line1 line2 line3 line4
+
+    columns="$(terminal_columns)"
+    if (( columns < 84 )); then
+        columns=84
+    elif (( columns > 104 )); then
+        columns=104
     fi
 
-    if [[ -n "${DESKTOP_USER:-}" ]]; then
-        local desktop_home crt_script launcher_path retroarch_cfg safety_cfg arm_script disarm_script
-        desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
-        crt_script="${desktop_home}/.config/emu-sff/apply-crt-mode.sh"
-        launcher_path="${desktop_home}/.config/emu-sff/launch-retroarch-crt.sh"
-        retroarch_cfg="${desktop_home}/.config/emu-sff/retroarch-crt.cfg"
-        safety_cfg="${desktop_home}/.config/emu-sff/crt-safety.conf"
-        arm_script="${desktop_home}/.config/emu-sff/arm-crt-output.sh"
-        disarm_script="${desktop_home}/.config/emu-sff/disarm-crt-output.sh"
+    inner_width=$((columns - 4))
+    left_width=$(((inner_width - 3) * 3 / 5))
+    right_width=$((inner_width - left_width - 3))
 
-        [[ -f "${crt_script}" ]] && print_status "CRT mode script:         " "OK" || print_status "CRT mode script:         " "WARN"
-        [[ -f "${launcher_path}" ]] && print_status "RetroArch launcher:      " "OK" || print_status "RetroArch launcher:      " "WARN"
-        [[ -f "${retroarch_cfg}" ]] && print_status "RetroArch CRT config:    " "OK" || print_status "RetroArch CRT config:    " "WARN"
-        [[ -f "${safety_cfg}" ]] && print_status "CRT safety config:       " "OK" || print_status "CRT safety config:       " "WARN"
-        [[ -f "${arm_script}" ]] && print_status "CRT arm helper:          " "OK" || print_status "CRT arm helper:          " "WARN"
-        [[ -f "${disarm_script}" ]] && print_status "CRT disarm helper:       " "OK" || print_status "CRT disarm helper:       " "WARN"
-    fi
+    cpu_usage="$(menu_cpu_usage)"
+    ram_usage="$(menu_ram_usage)"
+    storage_usage="$(menu_storage_usage)"
+    network_speed="$(menu_network_speed)"
+    line1="Desktop user: ${DESKTOP_USER:-n/a}"
+    line2="CRT output: ${CRT_OUTPUT:-n/a}"
+    line3="CRT mode: ${SUPER_MODE_NAME:-n/a}"
+    line4="State file: ${EMU_SFF_STATE_FILE}"
 
-    if [[ -n "${CRT_OUTPUT:-}" ]]; then
-        echo "CRT output target: ${CRT_OUTPUT}"
-    fi
-    if [[ -n "${SUPER_MODE_NAME:-}" ]]; then
-        echo "CRT mode target: ${SUPER_MODE_NAME}"
+    printf "\033[2J\033[H"
+    printf "${COLOR_PANEL}.%s.${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+    print_panel_line "${left_width}" "${right_width}" "status dashboard" "Live checks"
+    print_panel_line "${left_width}" "${right_width}" "" "Press any key to return"
+    print_panel_line "${left_width}" "${right_width}" "CPU: ${cpu_usage:-n/a}" ""
+    print_panel_line "${left_width}" "${right_width}" "RAM: ${ram_usage:-n/a}" ""
+    print_panel_line "${left_width}" "${right_width}" "Disk: ${storage_usage:-n/a}" ""
+    print_panel_line "${left_width}" "${right_width}" "Net: ${network_speed:-n/a}" ""
+    print_panel_line "${left_width}" "${right_width}" "" ""
+    print_panel_line "${left_width}" "${right_width}" "Service status" "Install context"
+
+    row_index=0
+    while IFS='|' read -r name state detail; do
+        if (( row_index < 4 )); then
+            case "${row_index}" in
+                0) print_panel_line "${left_width}" "${right_width}" "${name}: $(status_value "${state}" "${detail}")" "${line1}" ;;
+                1) print_panel_line "${left_width}" "${right_width}" "${name}: $(status_value "${state}" "${detail}")" "${line2}" ;;
+                2) print_panel_line "${left_width}" "${right_width}" "${name}: $(status_value "${state}" "${detail}")" "${line3}" ;;
+                3) print_panel_line "${left_width}" "${right_width}" "${name}: $(status_value "${state}" "${detail}")" "${line4}" ;;
+            esac
+        else
+            print_panel_line "${left_width}" "${right_width}" "${name}: $(status_value "${state}" "${detail}")" ""
+        fi
+        row_index=$((row_index + 1))
+    done < <(collect_status_rows)
+
+    printf "${COLOR_PANEL}'%s'${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+}
+
+do_status() {
+    load_state_file || true
+    render_status_screen
+
+    if [[ -t 0 ]]; then
+        IFS= read -r -s -n 1 _
+        printf "\n"
     fi
 }

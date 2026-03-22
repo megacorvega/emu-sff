@@ -121,6 +121,7 @@ render_status_screen() {
     local cpu_usage ram_usage storage_usage network_speed
     local row_index name state detail
     local line1 line2 line3 line4
+    local screen
 
     calculate_ui_layout
 
@@ -134,39 +135,45 @@ render_status_screen() {
     line4="State file: ${EMU_SFF_STATE_FILE}"
 
     if (( UI_COMPACT_MODE == 1 )); then
-        render_compact_box
+        screen="$(render_compact_box)"
+        printf '%b' "${screen}"
         return 0
     fi
 
-    printf "\033[2J\033[H"
-    print_ui_margin
-    printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "status dashboard" "Live checks"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "Press any key to return"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "CPU: ${cpu_usage:-n/a}" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "RAM: ${ram_usage:-n/a}" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Disk: ${storage_usage:-n/a}" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Net: ${network_speed:-n/a}" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Service status" "Install context"
+    screen="$(
+        {
+            printf "\033[2J\033[H"
+            print_ui_margin
+            printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "status dashboard" "Live checks"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "Press any key to return"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "CPU: ${cpu_usage:-n/a}" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "RAM: ${ram_usage:-n/a}" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Disk: ${storage_usage:-n/a}" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Net: ${network_speed:-n/a}" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Service status" "Install context"
 
-    row_index=0
-    while IFS='|' read -r name state detail; do
-        if (( row_index < 4 )); then
-            case "${row_index}" in
-                0) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line1}" ;;
-                1) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line2}" ;;
-                2) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line3}" ;;
-                3) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line4}" ;;
-            esac
-        else
-            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" ""
-        fi
-        row_index=$((row_index + 1))
-    done < <(collect_status_rows)
+            row_index=0
+            while IFS='|' read -r name state detail; do
+                if (( row_index < 4 )); then
+                    case "${row_index}" in
+                        0) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line1}" ;;
+                        1) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line2}" ;;
+                        2) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line3}" ;;
+                        3) print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" "${line4}" ;;
+                    esac
+                else
+                    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${name}: $(status_value "${state}" "${detail}")" ""
+                fi
+                row_index=$((row_index + 1))
+            done < <(collect_status_rows)
 
-    print_ui_margin
-    printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
+            print_ui_margin
+            printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
+        }
+    )"
+    printf '%b' "${screen}"
 }
 
 do_status() {

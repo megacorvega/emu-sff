@@ -45,37 +45,45 @@ refresh_menu_snapshot() {
 }
 
 show_menu() {
+    local screen
+
     calculate_ui_layout
 
     if (( UI_COMPACT_MODE == 1 )); then
-        render_compact_box
+        screen="$(render_compact_box)"
+        printf '%b' "${screen}"
         pause_for_keypress "Terminal too small for full UI"
         return 1
     fi
 
-    printf "\033[2J\033[H"
-    print_ui_margin
-    printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "emu-sff utility" "Current commands"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "1. setup / install"
-    print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " "2. status"
-    print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "3. uninstall"
-    print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "             ███       " "4. refresh"
-    print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "5. exit"
-    print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Bitmap epsilon mark" "System summary"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "CPU: ${MENU_CPU_USAGE:-n/a}" "${MENU_SUMMARY_LINE_1}"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "RAM: ${MENU_RAM_USAGE:-n/a}" "${MENU_SUMMARY_LINE_2}"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Disk: ${MENU_STORAGE_USAGE:-n/a}" "${MENU_SUMMARY_LINE_3}"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Net: ${MENU_NETWORK_SPEED:-n/a}" "${MENU_SUMMARY_LINE_4}"
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Project root" ""
-    print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${SCRIPT_DIR}" ""
-    print_ui_margin
-    printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
-    printf "\n"
-    print_ui_margin
-    printf "${COLOR_MUTED}> Select an option [1-5]: ${COLOR_RESET}"
+    screen="$(
+        {
+            printf "\033[2J\033[H"
+            print_ui_margin
+            printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "emu-sff utility" "Current commands"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "1. setup / install"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " "2. status"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "3. uninstall"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "             ███       " "4. refresh"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "5. exit"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Bitmap epsilon mark" "System summary"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "CPU: ${MENU_CPU_USAGE:-n/a}" "${MENU_SUMMARY_LINE_1}"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "RAM: ${MENU_RAM_USAGE:-n/a}" "${MENU_SUMMARY_LINE_2}"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Disk: ${MENU_STORAGE_USAGE:-n/a}" "${MENU_SUMMARY_LINE_3}"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Net: ${MENU_NETWORK_SPEED:-n/a}" "${MENU_SUMMARY_LINE_4}"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Project root" ""
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "${SCRIPT_DIR}" ""
+            print_ui_margin
+            printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
+            printf "\n"
+            print_ui_margin
+            printf "${COLOR_MUTED}> Select an option [1-5]: ${COLOR_RESET}"
+        }
+    )"
+    printf '%b' "${screen}"
 
     read -r option
     case "${option}" in

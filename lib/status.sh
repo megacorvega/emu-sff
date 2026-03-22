@@ -29,16 +29,19 @@ check_crt_armed() {
 status_value() {
     local state="$1"
     local detail="${2:-}"
+    local color
+
+    color="$(status_color "${state}")"
 
     case "${state}" in
         OK)
-            printf 'OK'
+            printf '%bOK%b' "${color}" "${COLOR_RESET}${COLOR_TEXT}"
             ;;
         WARN)
-            printf 'WARN'
+            printf '%bWARN%b' "${color}" "${COLOR_RESET}${COLOR_TEXT}"
             ;;
         *)
-            printf 'ERROR'
+            printf '%bERROR%b' "${color}" "${COLOR_RESET}${COLOR_TEXT}"
             ;;
     esac
 
@@ -141,7 +144,7 @@ render_status_screen() {
     line4="State file: ${EMU_SFF_STATE_FILE}"
 
     printf "\033[2J\033[H"
-    printf "${COLOR_PANEL}.%s.${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+    printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((inner_width + 2)))"
     print_panel_line "${left_width}" "${right_width}" "status dashboard" "Live checks"
     print_panel_line "${left_width}" "${right_width}" "" "Press any key to return"
     print_panel_line "${left_width}" "${right_width}" "CPU: ${cpu_usage:-n/a}" ""
@@ -166,7 +169,7 @@ render_status_screen() {
         row_index=$((row_index + 1))
     done < <(collect_status_rows)
 
-    printf "${COLOR_PANEL}'%s'${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+    printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((inner_width + 2)))"
 }
 
 do_status() {

@@ -46,7 +46,7 @@ show_menu() {
     summary_line_4="${summary_lines[3]:-CRT config: unknown}"
 
     printf "\033[2J\033[H"
-    printf "${COLOR_PANEL}.%s.${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+    printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((inner_width + 2)))"
     print_panel_line "${left_width}" "${right_width}" "emu-sff utility" "Current commands"
     print_panel_line "${left_width}" "${right_width}" "                            " "1. setup / install"
     print_logo_panel_line "${left_width}" "${right_width}" "            ██████     " "2. status"
@@ -62,7 +62,7 @@ show_menu() {
     print_panel_line "${left_width}" "${right_width}" "Net: ${network_speed:-n/a}" "${summary_line_4}"
     print_panel_line "${left_width}" "${right_width}" "Project root" ""
     print_panel_line "${left_width}" "${right_width}" "${SCRIPT_DIR}" ""
-    printf "${COLOR_PANEL}'%s'${COLOR_RESET}\n" "$(repeat_char "-" $((inner_width + 2)))"
+    printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((inner_width + 2)))"
     printf "\n${COLOR_MUTED}> Select an option [1-4]: ${COLOR_RESET}"
 
     read -r option

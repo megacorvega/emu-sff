@@ -18,12 +18,27 @@ DEFAULT_SUPER_MODE_NAME="2560x240_60.00"
 DEFAULT_SUPER_MODELINE="50.00 2560 2720 2960 3200 240 244 246 261 -hsync -vsync"
 
 COLOR_RESET=$'\033[0m'
-COLOR_PANEL=$'\033[38;5;95m'
+COLOR_PANEL=$'\033[38;5;172m'
 COLOR_MUTED=$'\033[38;5;244m'
 COLOR_TEXT=$'\033[38;5;188m'
-COLOR_LOGO=$'\033[38;5;131m'
-COLOR_TITLE=$'\033[38;5;180m'
+COLOR_LOGO=$'\033[38;5;172m'
+COLOR_TITLE=$'\033[38;5;172m'
+COLOR_OK=$'\033[38;5;114m'
+COLOR_WARN=$'\033[38;5;221m'
+COLOR_ERROR=$'\033[38;5;203m'
 EMU_SFF_UI_ACTIVE="${EMU_SFF_UI_ACTIVE:-0}"
+
+BOX_TOP_LEFT="┌"
+BOX_TOP_RIGHT="┐"
+BOX_BOTTOM_LEFT="└"
+BOX_BOTTOM_RIGHT="┘"
+BOX_HORIZONTAL="─"
+BOX_VERTICAL="│"
+BOX_TEE_DOWN="┬"
+BOX_TEE_UP="┴"
+BOX_TEE_RIGHT="├"
+BOX_TEE_LEFT="┤"
+BOX_CROSS="┼"
 
 print_info() {
     printf '[INFO] %s\n' "$1"
@@ -228,16 +243,17 @@ repeat_char() {
 pad_text() {
     local width="$1"
     local text="$2"
-    local text_length
+    local text_length plain_text
 
-    text_length=${#text}
+    plain_text="$(printf '%b' "${text}" | sed -E $'s/\x1B\\[[0-9;]*[A-Za-z]//g')"
+    text_length=${#plain_text}
 
     if (( text_length > width )); then
-        printf '%s' "${text:0:width}"
+        printf '%s' "${plain_text:0:width}"
         return
     fi
 
-    printf '%s' "${text}"
+    printf '%b' "${text}"
     repeat_char " " $((width - text_length))
 }
 
@@ -247,7 +263,7 @@ print_panel_line() {
     local left_text="${3:-}"
     local right_text="${4:-}"
 
-    printf "${COLOR_PANEL}|${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET}\n" \
+    printf "${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET}\n" \
         "$(pad_text "${left_width}" "${left_text}")" \
         "$(pad_text "${right_width}" "${right_text}")"
 }
@@ -256,9 +272,9 @@ print_panel_divider() {
     local left_width="$1"
     local right_width="$2"
 
-    printf "${COLOR_PANEL}|%s|%s|${COLOR_RESET}\n" \
-        "$(repeat_char "-" $((left_width + 2)))" \
-        "$(repeat_char "-" $((right_width + 2)))"
+    printf "${COLOR_PANEL}${BOX_TEE_RIGHT}%s${BOX_CROSS}%s${BOX_TEE_LEFT}${COLOR_RESET}\n" \
+        "$(repeat_char "${BOX_HORIZONTAL}" $((left_width + 2)))" \
+        "$(repeat_char "${BOX_HORIZONTAL}" $((right_width + 2)))"
 }
 
 print_logo_panel_line() {
@@ -267,9 +283,17 @@ print_logo_panel_line() {
     local logo_text="${3:-}"
     local right_text="${4:-}"
 
-    printf "${COLOR_PANEL}|${COLOR_RESET} ${COLOR_LOGO}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}|${COLOR_RESET}\n" \
+    printf "${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET} ${COLOR_LOGO}%s${COLOR_RESET} ${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET} ${COLOR_TEXT}%s${COLOR_RESET} ${COLOR_PANEL}${BOX_VERTICAL}${COLOR_RESET}\n" \
         "$(pad_text "${left_width}" "${logo_text}")" \
         "$(pad_text "${right_width}" "${right_text}")"
+}
+
+status_color() {
+    case "$1" in
+        OK) printf '%s' "${COLOR_OK}" ;;
+        WARN) printf '%s' "${COLOR_WARN}" ;;
+        *) printf '%s' "${COLOR_ERROR}" ;;
+    esac
 }
 
 menu_cpu_usage() {

@@ -191,7 +191,10 @@ generate_crt_stack() {
     chown -R "${DESKTOP_USER}:${DESKTOP_USER}" "${user_config_dir}" "${user_service_dir}"
 
     if command -v runuser >/dev/null 2>&1; then
-        runuser -u "${DESKTOP_USER}" -- systemctl --user daemon-reload || true
+        if ! runuser -u "${DESKTOP_USER}" -- systemctl --user daemon-reload >/dev/null 2>&1; then
+            print_warn "Skipped systemctl --user daemon-reload because ${DESKTOP_USER} does not have an active user bus yet."
+            print_warn "This is normal on headless setup or before the desktop user logs in."
+        fi
     fi
 
     print_warn "CRT mode auto-apply is not enabled by setup."

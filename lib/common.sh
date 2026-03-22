@@ -21,6 +21,7 @@ COLOR_MUTED=$'\033[38;5;244m'
 COLOR_TEXT=$'\033[38;5;188m'
 COLOR_LOGO=$'\033[38;5;131m'
 COLOR_TITLE=$'\033[38;5;180m'
+EMU_SFF_UI_ACTIVE="${EMU_SFF_UI_ACTIVE:-0}"
 
 print_info() {
     printf '[INFO] %s\n' "$1"
@@ -166,6 +167,46 @@ terminal_columns() {
         tput cols 2>/dev/null || echo 100
     else
         echo 100
+    fi
+}
+
+enter_alt_screen() {
+    if [[ "${EMU_SFF_UI_ACTIVE}" == "1" ]]; then
+        return 0
+    fi
+
+    if command_exists tput; then
+        tput smcup 2>/dev/null || printf '\033[?1049h'
+        tput civis 2>/dev/null || true
+    else
+        printf '\033[?1049h'
+    fi
+
+    EMU_SFF_UI_ACTIVE=1
+}
+
+leave_alt_screen() {
+    if [[ "${EMU_SFF_UI_ACTIVE}" != "1" ]]; then
+        return 0
+    fi
+
+    if command_exists tput; then
+        tput cnorm 2>/dev/null || true
+        tput rmcup 2>/dev/null || printf '\033[?1049l'
+    else
+        printf '\033[?1049l'
+    fi
+
+    EMU_SFF_UI_ACTIVE=0
+}
+
+pause_for_keypress() {
+    local prompt_text="${1:-Press any key to return}"
+
+    if [[ -t 0 ]]; then
+        printf "\n${COLOR_MUTED}> %s${COLOR_RESET}" "${prompt_text}"
+        IFS= read -r -s -n 1 _
+        printf "\n"
     fi
 }
 

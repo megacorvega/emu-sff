@@ -173,8 +173,5 @@ do_status() {
     load_state_file || true
     render_status_screen
 
-    if [[ -t 0 ]]; then
-        IFS= read -r -s -n 1 _
-        printf "\n"
-    fi
+    pause_for_keypress
 }

@@ -71,4 +71,5 @@ do_uninstall() {
     fi
 
     print_info "Uninstall complete."
+    pause_for_keypress "Press any key to return to the utility"
 }

@@ -70,9 +70,22 @@ show_menu() {
         1) do_setup ;;
         2) do_status ;;
         3) do_uninstall ;;
-        4) exit 0 ;;
-        *) echo "Invalid option."; show_menu ;;
+        4) return 1 ;;
+        *) ;;
     esac
+
+    return 0
+}
+
+run_interactive_utility() {
+    enter_alt_screen
+    trap leave_alt_screen EXIT
+
+    while true; do
+        if ! show_menu; then
+            break
+        fi
+    done
 }
 
 main() {
@@ -89,7 +102,7 @@ main() {
             do_uninstall
             ;;
         "")
-            show_menu
+            run_interactive_utility
             ;;
         *)
             echo "Unknown command: ${1}"

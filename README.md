@@ -4,6 +4,8 @@
 
 </div>
 
+##emu-sff
+
 `emu-sff` configures one Linux machine to handle three jobs:
 
 1. Serve legacy ROMs over Ethernet with an isolated DHCP + SMB stack.

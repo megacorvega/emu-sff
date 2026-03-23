@@ -4,7 +4,7 @@
 
 </div>
 
-##emu-sff
+## emu-sff
 
 `emu-sff` configures one Linux machine to handle three jobs:
 

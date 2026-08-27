@@ -12,6 +12,8 @@
 2. Keep Wi-Fi performant for inbound game-file transfers.
 3. Launch RetroArch against a CRT-friendly 15 kHz super resolution pipeline.
 
+It also includes a dedicated PS2/OPL ISO-server mode for Ubuntu Server on ARM.
+
 The repo is now organized so [`emu-sff.sh`](/Users/dd/emu-sff/emu-sff.sh) stays the main entrypoint and delegates to focused modules under [`lib/`](/Users/dd/emu-sff/lib) and reusable templates under [`templates/`](/Users/dd/emu-sff/templates).
 
 The active install state is persisted at `/etc/emu-sff/emu-sff.env` so `status` and `uninstall` can find the configured paths and CRT settings without re-entering everything.
@@ -73,6 +75,19 @@ Run the setup script as root:
 chmod +x emu-sff.sh
 sudo ./emu-sff.sh setup
 ```
+
+### PS2 / OPL ISO server (Raspberry Pi)
+
+On an Ubuntu Server Raspberry Pi, run:
+
+```bash
+chmod +x emu-sff.sh
+sudo ./emu-sff.sh ps2
+```
+
+This headless setup installs native Samba and dnsmasq services, assigns the selected PS2-facing Ethernet interface `192.168.2.1/24`, and starts DHCP plus an SMB1 guest share named `share`. It creates `DVD/` and `CD/` folders under the storage path for DVD- and CD-format PS2 ISOs.
+
+Use a separate Ethernet interface for the Pi's normal network connection if it needs one; the selected interface is dedicated to the isolated PS2 link. In OPL, use SMB server `192.168.2.1` and share name `share`. The service intentionally permits SMB1/NT1 and guest access, so do not expose that Ethernet interface to an untrusted network.
 
 Setup prompts for:
 

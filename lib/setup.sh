@@ -47,6 +47,30 @@ collect_setup_inputs() {
     SUPER_MODELINE="${SUPER_MODELINE:-${DEFAULT_SUPER_MODELINE}}"
 }
 
+collect_ps2_setup_inputs() {
+    local available_interfaces recommended_lan
+
+    available_interfaces="$(ls /sys/class/net | grep -v '^lo$' | tr '\n' ' ' | sed 's/ $//')"
+    recommended_lan="$(detect_first_interface '^en|^eth')"
+
+    echo "Available network interfaces: ${available_interfaces}"
+    read -r -p "Enter the Ethernet interface connected to the PS2 [${recommended_lan:-eth0}]: " LAN_IF
+    LAN_IF="${LAN_IF:-${recommended_lan:-eth0}}"
+    read -r -p "Enter the absolute path for PS2 game storage [${DEFAULT_STORAGE_PATH}]: " STORAGE_PATH
+    STORAGE_PATH="${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}"
+    read -r -p "Enter the absolute path for generated config [${DEFAULT_CONFIG_PATH}]: " CONFIG_PATH
+    CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}"
+
+    SETUP_MODE="ps2"
+    WLAN_IF=""
+    DESKTOP_USER=""
+    CRT_OUTPUT=""
+    SUPER_WIDTH=""
+    SUPER_HEIGHT=""
+    SUPER_MODE_NAME=""
+    SUPER_MODELINE=""
+}
+
 install_dependencies() {
     print_info "Installing Docker, RetroArch, and display tools."
 
@@ -65,6 +89,12 @@ EOF
 
     apt-get update
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+}
+
+install_ps2_server_dependencies() {
+    print_info "Installing Samba and dnsmasq for the PS2 ISO server."
+    apt-get update
+    apt-get install -y samba dnsmasq
 }
 
 configure_networking() {
@@ -118,6 +148,33 @@ generate_container_configs() {
         "CONFIG_PATH=${CONFIG_PATH}"
 
     (cd "${CONFIG_PATH}" && docker compose up -d)
+}
+
+configure_ps2_services() {
+    local samba_backup_path
+
+    print_info "Configuring native Samba and dnsmasq services for OPL."
+    ensure_directory "${CONFIG_PATH}"
+    ensure_directory "${CONFIG_PATH}/dnsmasq"
+    ensure_directory "${CONFIG_PATH}/samba"
+    ensure_directory "${STORAGE_PATH}" "0775"
+    ensure_directory "${STORAGE_PATH}/DVD" "0775"
+    ensure_directory "${STORAGE_PATH}/CD" "0775"
+
+    render_template "${EMU_SFF_TEMPLATES_DIR}/ps2-dnsmasq.conf.tpl" "${CONFIG_PATH}/dnsmasq/dnsmasq.conf" "LAN_IF=${LAN_IF}"
+    render_template "${EMU_SFF_TEMPLATES_DIR}/smb.conf.tpl" "${CONFIG_PATH}/samba/smb.conf" "STORAGE_PATH=${STORAGE_PATH}"
+
+    samba_backup_path="/etc/samba/smb.conf.emu-sff-backup"
+    if [[ -f /etc/samba/smb.conf && ! -f "${samba_backup_path}" ]]; then
+        cp /etc/samba/smb.conf "${samba_backup_path}"
+    fi
+    install -m 0644 "${CONFIG_PATH}/samba/smb.conf" /etc/samba/smb.conf
+    install -m 0644 "${CONFIG_PATH}/dnsmasq/dnsmasq.conf" /etc/dnsmasq.d/emu-sff-ps2.conf
+
+    systemctl enable --now smbd.service
+    systemctl restart smbd.service
+    systemctl enable --now dnsmasq.service
+    systemctl restart dnsmasq.service
 }
 
 generate_crt_stack() {
@@ -275,5 +332,38 @@ do_setup() {
 
     echo
     print_info "Setup complete. Running status check."
+    do_status
+}
+
+do_ps2_setup() {
+    echo "======================================"
+    echo "   emu-sff - PS2 OPL ISO Server"
+    echo "======================================"
+    echo "This configures an isolated Ethernet link at 192.168.2.1/24."
+    echo "Connect the selected interface only to the PS2/network adapter."
+
+    collect_ps2_setup_inputs
+    ensure_directory "${CONFIG_PATH}"
+    save_state_file
+
+    if prompt_step "[1/3] Install PS2 server dependencies" "Install native Samba and dnsmasq packages for Ubuntu Server on ARM."; then
+        install_ps2_server_dependencies
+    else
+        print_warn "Skipping dependency installation. Samba and dnsmasq must already be installed."
+    fi
+    if prompt_step "[2/3] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
+        configure_networking
+    else
+        print_warn "Skipping static IP configuration. The PS2 server needs 192.168.2.1/24 on ${LAN_IF}."
+    fi
+    if prompt_step "[3/3] Configure OPL SMB/DHCP services" "Create DVD and CD folders, then start native Samba and dnsmasq."; then
+        configure_ps2_services
+    else
+        print_warn "Skipping PS2 service configuration."
+    fi
+
+    echo
+    print_info "PS2 ISO server setup complete. Store DVD ISOs in ${STORAGE_PATH}/DVD and CD ISOs in ${STORAGE_PATH}/CD."
+    print_info "In OPL, use SMB server 192.168.2.1 and share name share."
     do_status
 }

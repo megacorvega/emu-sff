@@ -27,6 +27,10 @@ do_uninstall() {
     echo "======================================"
 
     load_state_file || true
+    if [[ "${SETUP_MODE:-full}" == "ps2" ]]; then
+        do_ps2_uninstall
+        return
+    fi
     read -r -p "Enter the config directory to remove [${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}]: " input_config_path
     CONFIG_PATH="${input_config_path:-${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}}"
 
@@ -75,4 +79,29 @@ do_uninstall() {
 
     print_info "Uninstall complete."
     pause_for_keypress "Press any key to return to the utility"
+}
+
+do_ps2_uninstall() {
+    local input_config_path confirm_uninstall
+
+    read -r -p "Enter the PS2 config directory to remove [${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}]: " input_config_path
+    CONFIG_PATH="${input_config_path:-${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}}"
+    read -r -p "Remove the PS2 ISO server configuration (not your ISOs)? [y/N]: " confirm_uninstall
+    case "${confirm_uninstall}" in
+        [yY]|[yY][eE][sS]) ;;
+        *) print_warn "Uninstall cancelled."; return ;;
+    esac
+
+    systemctl disable --now smbd.service dnsmasq.service >/dev/null 2>&1 || true
+    rm -f /etc/dnsmasq.d/emu-sff-ps2.conf
+    if [[ -f /etc/samba/smb.conf.emu-sff-backup ]]; then
+        mv /etc/samba/smb.conf.emu-sff-backup /etc/samba/smb.conf
+    fi
+    rm -f /etc/netplan/99-emu-sff.yaml
+    netplan apply || true
+    if [[ -d "${CONFIG_PATH}" && "${CONFIG_PATH}" != "/" ]]; then
+        rm -rf "${CONFIG_PATH}"
+    fi
+    rm -f "${EMU_SFF_STATE_FILE}"
+    print_info "PS2 server configuration removed. Game files in ${STORAGE_PATH:-your storage path} were left untouched."
 }

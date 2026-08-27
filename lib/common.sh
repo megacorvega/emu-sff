@@ -140,6 +140,7 @@ save_state_file() {
     ensure_directory "${EMU_SFF_STATE_DIR}"
 
     {
+        printf 'SETUP_MODE=%q\n' "${SETUP_MODE:-full}"
         printf 'LAN_IF=%q\n' "${LAN_IF}"
         printf 'WLAN_IF=%q\n' "${WLAN_IF}"
         printf 'STORAGE_PATH=%q\n' "${STORAGE_PATH}"

@@ -54,6 +54,31 @@ collect_status_rows() {
     local docker_state samba_state dhcp_state lan_state wifi_state retroarch_state
     local service_state armed_state detail
 
+    if [[ "${SETUP_MODE:-full}" == "ps2" ]]; then
+        if command_exists systemctl && systemctl is-active --quiet smbd.service 2>/dev/null; then
+            samba_state="OK"
+        else
+            samba_state="ERROR"
+        fi
+        if command_exists systemctl && systemctl is-active --quiet dnsmasq.service 2>/dev/null; then
+            dhcp_state="OK"
+        else
+            dhcp_state="ERROR"
+        fi
+        printf 'Setup mode|OK|PS2 OPL ISO server\n'
+        printf 'Samba service|%s|native service\n' "${samba_state}"
+        printf 'Dnsmasq service|%s|native service\n' "${dhcp_state}"
+        if command_exists ip && ip addr show "${LAN_IF}" 2>/dev/null | grep -q '192.168.2.1/24'; then
+            lan_state="OK"
+            detail="192.168.2.1 configured on ${LAN_IF}"
+        else
+            lan_state="ERROR"
+            detail="192.168.2.1 missing on ${LAN_IF}"
+        fi
+        printf 'Static LAN IP|%s|%s\n' "${lan_state}" "${detail}"
+        return
+    fi
+
     if command_exists systemctl && systemctl is-active --quiet docker 2>/dev/null; then
         docker_state="OK"
     else

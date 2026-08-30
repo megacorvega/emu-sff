@@ -1,0 +1,6 @@
+# Template files use a project-specific __NAME__ substitution syntax.
+templates/*.sh.tpl linguist-language=Shell
+templates/*.yml.tpl linguist-language=YAML
+templates/*.conf.tpl linguist-language=INI
+templates/*.cfg.tpl linguist-language=INI
+templates/*.service.tpl linguist-language=INI

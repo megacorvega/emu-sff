@@ -69,7 +69,7 @@ show_menu() {
             print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "5. exit"
             print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " ""
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
-            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Bitmap epsilon mark" "System summary"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "System summary"
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "CPU: ${MENU_CPU_USAGE:-n/a}" "${MENU_SUMMARY_LINE_1}"
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "RAM: ${MENU_RAM_USAGE:-n/a}" "${MENU_SUMMARY_LINE_2}"
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Disk: ${MENU_STORAGE_USAGE:-n/a}" "${MENU_SUMMARY_LINE_3}"

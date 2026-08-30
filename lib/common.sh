@@ -140,7 +140,9 @@ save_state_file() {
     ensure_directory "${EMU_SFF_STATE_DIR}"
 
     {
-        printf 'SETUP_MODE=%q\n' "${SETUP_MODE:-full}"
+        printf 'SETUP_PROFILE=%q\n' "${SETUP_PROFILE:-full}"
+        printf 'SERVICE_BACKEND=%q\n' "${SERVICE_BACKEND:-docker}"
+        printf 'OPL_ENABLED=%q\n' "${OPL_ENABLED:-0}"
         printf 'LAN_IF=%q\n' "${LAN_IF}"
         printf 'WLAN_IF=%q\n' "${WLAN_IF}"
         printf 'STORAGE_PATH=%q\n' "${STORAGE_PATH}"
@@ -154,10 +156,31 @@ save_state_file() {
     } > "${EMU_SFF_STATE_FILE}"
 }
 
+normalize_install_state() {
+    local legacy_mode="${SETUP_MODE:-}"
+
+    SETUP_PROFILE="${SETUP_PROFILE:-${legacy_mode:-full}}"
+    if [[ -z "${SERVICE_BACKEND:-}" ]]; then
+        if [[ "${legacy_mode}" == "ps2" ]]; then
+            SERVICE_BACKEND="native"
+        else
+            SERVICE_BACKEND="docker"
+        fi
+    fi
+    if [[ -z "${OPL_ENABLED:-}" ]]; then
+        if [[ "${legacy_mode}" == "ps2" ]]; then
+            OPL_ENABLED="1"
+        else
+            OPL_ENABLED="0"
+        fi
+    fi
+}
+
 load_state_file() {
     if [[ -f "${EMU_SFF_STATE_FILE}" ]]; then
         # shellcheck disable=SC1090
         source "${EMU_SFF_STATE_FILE}"
+        normalize_install_state
         return 0
     fi
 
@@ -416,17 +439,25 @@ menu_network_speed() {
 }
 
 menu_system_summary_lines() {
-    local docker_state state_state lan_state crt_state
+    local service_state state_state lan_state crt_state
 
-    docker_state="Docker: unavailable"
-    if command_exists systemctl; then
-        if systemctl is-active --quiet docker 2>/dev/null; then
-            docker_state="Docker: active"
-        else
-            docker_state="Docker: inactive"
+    load_state_file >/dev/null 2>&1 || true
+    if [[ "${SERVICE_BACKEND:-docker}" == "native" ]]; then
+        service_state="Services: native inactive"
+        if command_exists systemctl && \
+           systemctl is-active --quiet smbd.service 2>/dev/null && \
+           systemctl is-active --quiet dnsmasq.service 2>/dev/null; then
+            service_state="Services: native active"
         fi
-    elif command_exists docker; then
-        docker_state="Docker: installed"
+    else
+        service_state="Docker: unavailable"
+        if command_exists systemctl && systemctl is-active --quiet docker 2>/dev/null; then
+            service_state="Docker: active"
+        elif command_exists docker; then
+            service_state="Docker: installed"
+        else
+            service_state="Docker: unavailable"
+        fi
     fi
 
     if [[ -f "${EMU_SFF_STATE_FILE}" ]]; then
@@ -441,7 +472,6 @@ menu_system_summary_lines() {
         lan_state="LAN IP: not set"
     fi
 
-    load_state_file >/dev/null 2>&1 || true
     if [[ -n "${DESKTOP_USER:-}" ]]; then
         local desktop_home
         desktop_home="$(desktop_user_home "${DESKTOP_USER}" 2>/dev/null || true)"
@@ -454,5 +484,5 @@ menu_system_summary_lines() {
         crt_state="CRT config: unknown"
     fi
 
-    printf '%s\n%s\n%s\n%s\n' "${docker_state}" "${state_state}" "${lan_state}" "${crt_state}"
+    printf '%s\n%s\n%s\n%s\n' "${service_state}" "${state_state}" "${lan_state}" "${crt_state}"
 }

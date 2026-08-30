@@ -38,7 +38,7 @@ refresh_menu_snapshot() {
         summary_index=$((summary_index + 1))
     done < <(menu_system_summary_lines)
 
-    MENU_SUMMARY_LINE_1="${summary_lines[0]:-Docker: unknown}"
+    MENU_SUMMARY_LINE_1="${summary_lines[0]:-Services: unknown}"
     MENU_SUMMARY_LINE_2="${summary_lines[1]:-Config state: unknown}"
     MENU_SUMMARY_LINE_3="${summary_lines[2]:-LAN IP: unknown}"
     MENU_SUMMARY_LINE_4="${summary_lines[3]:-CRT config: unknown}"
@@ -62,12 +62,12 @@ show_menu() {
             print_ui_margin
             printf "${COLOR_PANEL}${BOX_TOP_LEFT}%s${BOX_TOP_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "emu-sff utility" "Current commands"
-            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "1. full setup / install"
-            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " "2. PS2 ISO server setup"
-            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "3. status"
-            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "             ███       " "4. uninstall"
-            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "5. refresh"
-            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " "6. exit"
+            print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" "1. setup / configure"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " "2. status"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "3. uninstall"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "             ███       " "4. refresh"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "           ███   ██    " "5. exit"
+            print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " ""
             print_ui_margin; print_logo_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "            ██████     " ""
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "" ""
             print_ui_margin; print_panel_line "${UI_LEFT_WIDTH}" "${UI_RIGHT_WIDTH}" "Bitmap epsilon mark" "System summary"
@@ -81,7 +81,7 @@ show_menu() {
             printf "${COLOR_PANEL}${BOX_BOTTOM_LEFT}%s${BOX_BOTTOM_RIGHT}${COLOR_RESET}\n" "$(repeat_char "${BOX_HORIZONTAL}" $((UI_INNER_WIDTH + 2)))"
             printf "\n"
             print_ui_margin
-            printf "${COLOR_MUTED}> Select an option [1-6]: ${COLOR_RESET}"
+            printf "${COLOR_MUTED}> Select an option [1-5]: ${COLOR_RESET}"
         }
     )"
     printf '%b' "${screen}"
@@ -89,11 +89,10 @@ show_menu() {
     read -r option
     case "${option}" in
         1) do_setup ;;
-        2) do_ps2_setup ;;
-        3) do_status ;;
-        4) do_uninstall ;;
-        5) do_refresh ;;
-        6) return 1 ;;
+        2) do_status ;;
+        3) do_uninstall ;;
+        4) do_refresh ;;
+        5) return 1 ;;
         *) ;;
     esac
 

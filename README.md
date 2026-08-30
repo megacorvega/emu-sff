@@ -1,41 +1,116 @@
 <div align="center">
 
-  <img src="./assets/emu-sff-icon.svg" alt="Emu Badge" width="150">
+  <img src="./assets/emu-sff-icon.svg" alt="emu-sff logo" width="150">
 
 </div>
 
-## emu-sff
+# emu-sff
 
-`emu-sff` configures one Linux machine to handle three jobs:
+`emu-sff` configures a Debian or Ubuntu machine as a legacy-game server and, optionally, a CRT-oriented RetroArch workstation. It can:
 
-1. Serve legacy ROMs over Ethernet with an isolated DHCP + SMB stack.
-2. Keep Wi-Fi performant for inbound game-file transfers.
-3. Launch RetroArch against a CRT-friendly 15 kHz super resolution pipeline.
+1. Serve games over an isolated Ethernet connection using DHCP and an SMB guest share.
+2. Create the `DVD/` and `CD/` layout expected by PS2 Open PS2 Loader (OPL).
+3. Keep Wi-Fi power saving disabled for more reliable inbound file transfers.
+4. Generate RetroArch and `xrandr` helpers for a 15 kHz CRT super-resolution workflow.
 
-It also includes a dedicated PS2/OPL ISO-server mode for Ubuntu Server on ARM.
+> [!NOTE]
+> Setup choices and paths are saved in `/etc/emu-sff/emu-sff.env`. The `status`, repeated `setup`, and `uninstall` commands use this file to identify the active profile and service backend.
 
-The repo is now organized so [`emu-sff.sh`](/Users/dd/emu-sff/emu-sff.sh) stays the main entrypoint and delegates to focused modules under [`lib/`](/Users/dd/emu-sff/lib) and reusable templates under [`templates/`](/Users/dd/emu-sff/templates).
+## Quick start
 
-The active install state is persisted at `/etc/emu-sff/emu-sff.env` so `status` and `uninstall` can find the configured paths and CRT settings without re-entering everything.
+Run the unified setup wizard as root:
 
-## Structure
+```bash
+chmod +x emu-sff.sh
+sudo ./emu-sff.sh setup
+```
 
-- [`emu-sff.sh`](/Users/dd/emu-sff/emu-sff.sh): main CLI entrypoint.
-- [`lib/common.sh`](/Users/dd/emu-sff/lib/common.sh): shared helpers, defaults, template rendering, and persisted state handling.
-- [`lib/setup.sh`](/Users/dd/emu-sff/lib/setup.sh): interactive setup flow.
-- [`lib/status.sh`](/Users/dd/emu-sff/lib/status.sh): service and config checks.
-- [`lib/uninstall.sh`](/Users/dd/emu-sff/lib/uninstall.sh): generated-file cleanup.
-- [`templates/`](/Users/dd/emu-sff/templates): auditable config templates for Docker, systemd, `xrandr`, and RetroArch.
+The same wizard is available from the interactive menu:
 
-## CRT path
+```bash
+sudo ./emu-sff.sh
+```
+
+## Installation choices
+
+Setup separates the machine's role from the way Samba and dnsmasq are installed.
+
+### Profiles
+
+| Profile | File server | PS2/OPL layout | Wi-Fi tuning | RetroArch and CRT helpers |
+| --- | --- | --- | --- | --- |
+| `full` | Yes | Optional | Yes | Yes |
+| `ps2` | Yes | Always enabled | No | No |
+
+Use `full` for a desktop emulation workstation. Use `ps2` for a small headless server, such as an Ubuntu Server Raspberry Pi connected directly to a PS2.
+
+### Service backends
+
+| Backend | Samba and dnsmasq run as | Best suited for |
+| --- | --- | --- |
+| `native` | System services managed by systemd | Minimal or headless installations |
+| `docker` | Host-networked containers | Isolating generated service configuration |
+
+Both backends expose the selected storage directory as an SMB guest share named `share`. The Docker dnsmasq image supports AMD64, ARM64, and ARMv7.
+
+When OPL support is enabled, setup:
+
+- creates `<storage-path>/DVD` and `<storage-path>/CD`;
+- assigns the selected Ethernet interface `192.168.2.1/24`;
+- provides DHCP addresses from `192.168.2.2` through `192.168.2.100`;
+- disables DNS on the isolated PS2 link;
+- configures an SMB1/NT1 guest share named `share`.
+
+In OPL, use server `192.168.2.1` and share name `share`.
+
+> [!WARNING]
+> SMB1/NT1 and guest access are intentionally enabled for legacy clients. Connect the selected Ethernet interface only to the PS2 or another trusted isolated network; do not expose it to the internet or an untrusted LAN.
+
+## Upgrading or changing an installation
+
+You can rerun `sudo ./emu-sff.sh setup` to change profiles or service backends. Existing values become the prompt defaults.
+
+> [!IMPORTANT]
+> A legacy PS2 installation is automatically interpreted as `ps2 + native + OPL`. Selecting `full` keeps its storage path and native backend by default, then adds the workstation features. This prevents a second Samba share from being created.
+
+If you deliberately switch between `native` and `docker`, setup removes the emu-sff-managed old backend before starting the new one. This prevents two Samba or dnsmasq instances from competing for the same network ports.
+
+Changing the storage path updates the share configuration but does not move existing game files. Move the files yourself or keep the existing path when prompted.
+
+The old PS2 command remains as a compatibility shortcut. It opens the unified wizard with the `ps2` profile preselected:
+
+```bash
+sudo ./emu-sff.sh ps2
+```
+
+## Setup steps
+
+Depending on the selected profile and backend, the wizard can:
+
+1. Install the required native packages or Docker Engine.
+2. Assign `192.168.2.1/24` to the selected Ethernet interface using Netplan.
+3. Disable Wi-Fi power saving for the full profile.
+4. Generate and start Samba and dnsmasq using the selected backend.
+5. Generate RetroArch and CRT helpers for the full profile.
+6. Install the optional global `emu-sff` launcher.
+
+The wizard prompts before performing each step.
+
+## CRT workflow
 
 The CRT workflow assumes:
 
-- Debian/Ubuntu on X11.
-- A GPU/driver stack that accepts custom `xrandr` modelines.
-- A physical converter chain that can safely accept a 15 kHz signal.
+- Debian or Ubuntu running X11;
+- a GPU and driver that accept custom `xrandr` modelines;
+- a converter and CRT that can safely accept a 15 kHz signal.
 
-During setup, the script generates these user-level files for the selected desktop user:
+The default target is `2560x240_60.00` with this modeline:
+
+```text
+50.00 2560 2720 2960 3200 240 244 246 261 -hsync -vsync
+```
+
+Setup generates these files for the selected desktop user:
 
 - `~/.config/emu-sff/apply-crt-mode.sh`
 - `~/.config/emu-sff/crt-safety.conf`
@@ -45,106 +120,58 @@ During setup, the script generates these user-level files for the selected deskt
 - `~/.config/emu-sff/launch-retroarch-crt.sh`
 - `~/.config/systemd/user/emu-sff-crt-mode.service`
 
-The default target mode is `2560x240_60.00` with this modeline:
+### CRT safety gate
 
-```text
-50.00 2560 2720 2960 3200 240 244 246 261 -hsync -vsync
-```
+CRT output is disarmed by default. Setup generates the user service but does not enable it. The launcher and mode script refuse to change the display unless:
 
-That is a conservative starting point for a 15 kHz super resolution workflow, not a guarantee for every GPU, converter, or CRT. If your chain needs different porch/sync timings, edit the generated CRT mode script after setup.
+- `CRT_ARMED=1` is present in `crt-safety.conf`; and
+- the configured modeline computes to a plausible 15 kHz horizontal and vertical sync range.
 
-## CRT safety gate
+> [!CAUTION]
+> The safety gate cannot control firmware, bootloader, display-manager, or pre-login video modes. For first bring-up, keep the CRT disconnected or behind a known-safe switch until the Linux session and modeline have been verified on safe equipment.
 
-The CRT path is intentionally disarmed by default:
+The default modeline is only a starting point. Adjust its porch and sync timings if required by your GPU, converter, or display.
 
-- setup generates the user service, but does not enable it
-- `launch-retroarch-crt.sh` refuses to start if the CRT path is disarmed
-- `apply-crt-mode.sh` refuses to touch the output unless:
-  - `CRT_ARMED=1` in `~/.config/emu-sff/crt-safety.conf`
-  - the configured modeline computes to a horizontal/vertical sync window that looks 15 kHz-safe
+## Commands
 
-Arm and disarm helpers are generated so you can explicitly control when the CRT path is allowed to drive the display.
+| Command | Purpose |
+| --- | --- |
+| `sudo ./emu-sff.sh` | Open the interactive utility |
+| `sudo ./emu-sff.sh setup` | Run or update the unified setup |
+| `sudo ./emu-sff.sh ps2` | Open setup with the PS2 profile preselected |
+| `sudo ./emu-sff.sh status` | Check the saved profile, backend, network, and optional workstation components |
+| `sudo ./emu-sff.sh uninstall` | Remove generated configuration and managed services |
+| `sudo ./emu-sff.sh refresh` | Refresh the installed global launcher from the current checkout |
 
-This mitigates accidental mode switches caused by this project, but it cannot control firmware, bootloader, display manager, or desktop modes that happen before the user-level scripts run. For first bring-up, keep the CRT disconnected or behind a known-safe switch until the Linux session and modeline are verified.
+## Status and uninstall
 
-## Setup
+The status screen checks the backend recorded in the state file:
 
-Run the setup script as root:
+- native installations check `smbd.service` and `dnsmasq.service`;
+- Docker installations check Docker and the `emu-samba` and `emu-dhcp` containers;
+- full installations additionally check Wi-Fi, RetroArch, and CRT state.
 
-```bash
-chmod +x emu-sff.sh
-sudo ./emu-sff.sh setup
-```
+Uninstall stops the selected backend, removes generated networking and application configuration, and restores the Samba configuration backed up by a native installation. It leaves the selected storage directory and game files in place. It does not uninstall Samba, dnsmasq, Docker, or RetroArch packages.
 
-### PS2 / OPL ISO server (Raspberry Pi)
+## Global launcher
 
-On an Ubuntu Server Raspberry Pi, run:
+If enabled during setup, the installer copies the application to `/usr/local/lib/emu-sff` and creates `/usr/local/bin/emu-sff`. The wrapper obtains root access with `sudo`, launches the utility in a transient `systemd-run --pty` unit, and returns to the same terminal when it exits.
 
-```bash
-chmod +x emu-sff.sh
-sudo ./emu-sff.sh ps2
-```
-
-This headless setup installs native Samba and dnsmasq services, assigns the selected PS2-facing Ethernet interface `192.168.2.1/24`, and starts DHCP plus an SMB1 guest share named `share`. It creates `DVD/` and `CD/` folders under the storage path for DVD- and CD-format PS2 ISOs.
-
-Use a separate Ethernet interface for the Pi's normal network connection if it needs one; the selected interface is dedicated to the isolated PS2 link. In OPL, use SMB server `192.168.2.1` and share name `share`. The service intentionally permits SMB1/NT1 and guest access, so do not expose that Ethernet interface to an untrusted network.
-
-Setup prompts for:
-
-- LAN interface
-- WLAN interface
-- storage path
-- generated-config path
-- desktop user
-- CRT output name
-- super resolution width/height
-- `xrandr` mode name and modeline
-
-The setup flow can perform five independent steps:
-
-1. Install Docker, RetroArch, `xrandr` tooling, and Wi-Fi utilities.
-2. Configure a static `192.168.2.1/24` address on the LAN interface.
-3. Disable Wi-Fi power saving with a persistent systemd service.
-4. Generate and start the Samba + dnsmasq container stack.
-5. Generate CRT/RetroArch scripts and a user service for mode application.
-6. Optionally install `/usr/local/bin/emu-sff`, which launches the utility from anywhere using `sudo` plus `systemd-run --pty`.
-
-If you later change the repo and want to refresh the installed global launcher bundle without rerunning setup, use:
+After changing this checkout, update that installed copy with:
 
 ```bash
 sudo ./emu-sff.sh refresh
 ```
 
-## Status and uninstall
+## Repository structure
 
-Check the current state:
+- [`emu-sff.sh`](./emu-sff.sh): main CLI and interactive menu
+- [`lib/common.sh`](./lib/common.sh): shared defaults, UI, template rendering, and persisted state
+- [`lib/setup.sh`](./lib/setup.sh): unified setup, backend migration, and CRT generation
+- [`lib/status.sh`](./lib/status.sh): backend-aware status checks
+- [`lib/uninstall.sh`](./lib/uninstall.sh): generated-file and managed-service cleanup
+- [`templates/`](./templates): Samba, dnsmasq, Docker Compose, Netplan-related, systemd, and RetroArch templates
 
-```bash
-sudo ./emu-sff.sh status
-```
+## Validation
 
-Remove generated configuration:
-
-```bash
-sudo ./emu-sff.sh uninstall
-```
-
-## Global launcher
-
-If you enable the launcher step during setup, the installer copies the main script to:
-
-- `/usr/local/lib/emu-sff/emu-sff.sh`
-
-and installs a wrapper at:
-
-- `/usr/local/bin/emu-sff`
-
-That wrapper:
-
-- prompts for `sudo` when needed
-- starts the utility in a transient systemd unit with `systemd-run --pty`
-- returns you to the same terminal when the utility exits
-
-## Testing notes
-
-This repository can be syntax-checked on any machine, but the networking, Docker, systemd, and CRT mode portions need validation on the target Linux box with the real display chain attached.
+The shell scripts and rendered configuration can be checked on any machine. Networking, Docker, systemd, DHCP, SMB, and CRT output must be validated on the target Linux hardware and real display chain.

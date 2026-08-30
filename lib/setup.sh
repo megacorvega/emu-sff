@@ -5,8 +5,63 @@ set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
+collect_installation_choices() {
+    local requested_profile="${1:-}" default_profile default_backend input_choice
+
+    default_profile="${SETUP_PROFILE:-full}"
+    if [[ -n "${requested_profile}" ]]; then
+        SETUP_PROFILE="${requested_profile}"
+        print_info "Using ${SETUP_PROFILE} installation profile."
+    else
+        read -r -p "Installation profile: full workstation or PS2-only server [${default_profile}]: " input_choice
+        SETUP_PROFILE="${input_choice:-${default_profile}}"
+    fi
+    case "${SETUP_PROFILE}" in
+        full|workstation) SETUP_PROFILE="full" ;;
+        ps2|server|ps2-only) SETUP_PROFILE="ps2" ;;
+        *)
+            print_error "Unknown installation profile: ${SETUP_PROFILE}. Use full or ps2."
+            exit 1
+            ;;
+    esac
+
+    default_backend="${SERVICE_BACKEND:-}"
+    if [[ -z "${default_backend}" ]]; then
+        if [[ "${SETUP_PROFILE}" == "ps2" ]]; then
+            default_backend="native"
+        else
+            default_backend="docker"
+        fi
+    fi
+    read -r -p "Samba/dnsmasq backend: native or docker [${default_backend}]: " input_choice
+    SERVICE_BACKEND="${input_choice:-${default_backend}}"
+    case "${SERVICE_BACKEND}" in
+        native|local) SERVICE_BACKEND="native" ;;
+        docker|container) SERVICE_BACKEND="docker" ;;
+        *)
+            print_error "Unknown service backend: ${SERVICE_BACKEND}. Use native or docker."
+            exit 1
+            ;;
+    esac
+
+    if [[ "${SETUP_PROFILE}" == "ps2" ]]; then
+        OPL_ENABLED="1"
+    else
+        read -r -p "Enable PS2/OPL ISO folders and DHCP-only networking? [Y/n]: " input_choice
+        case "${input_choice:-Y}" in
+            [Yy]*) OPL_ENABLED="1" ;;
+            [Nn]*) OPL_ENABLED="0" ;;
+            *)
+                print_error "Please answer yes or no for PS2/OPL support."
+                exit 1
+                ;;
+        esac
+    fi
+}
+
 collect_setup_inputs() {
     local available_interfaces recommended_lan recommended_wlan default_desktop_user
+    local input_storage_path input_config_path input_crt_output input_super_width input_super_height input_mode_name input_modeline
 
     available_interfaces="$(ls /sys/class/net | grep -v '^lo$' | tr '\n' ' ' | sed 's/ $//')"
     recommended_lan="$(detect_first_interface '^en|^eth')"
@@ -15,68 +70,82 @@ collect_setup_inputs() {
 
     echo "Available network interfaces: ${available_interfaces}"
 
-    read -r -p "Enter your LAN interface [${recommended_lan:-eth0}]: " LAN_IF
-    LAN_IF="${LAN_IF:-${recommended_lan:-eth0}}"
+    recommended_lan="${LAN_IF:-${recommended_lan:-eth0}}"
+    read -r -p "Enter your LAN interface [${recommended_lan}]: " LAN_IF
+    LAN_IF="${LAN_IF:-${recommended_lan}}"
 
-    read -r -p "Enter your WLAN interface [${recommended_wlan:-wlan0}]: " WLAN_IF
-    WLAN_IF="${WLAN_IF:-${recommended_wlan:-wlan0}}"
+    recommended_wlan="${WLAN_IF:-${recommended_wlan:-wlan0}}"
+    read -r -p "Enter your WLAN interface [${recommended_wlan}]: " WLAN_IF
+    WLAN_IF="${WLAN_IF:-${recommended_wlan}}"
 
-    read -r -p "Enter the absolute path for game storage [${DEFAULT_STORAGE_PATH}]: " STORAGE_PATH
-    STORAGE_PATH="${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}"
+    read -r -p "Enter the absolute path for game storage [${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}]: " input_storage_path
+    STORAGE_PATH="${input_storage_path:-${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}}"
 
-    read -r -p "Enter the absolute path for generated config [${DEFAULT_CONFIG_PATH}]: " CONFIG_PATH
-    CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}"
+    read -r -p "Enter the absolute path for generated config [${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}]: " input_config_path
+    CONFIG_PATH="${input_config_path:-${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}}"
 
+    default_desktop_user="${DESKTOP_USER:-${default_desktop_user}}"
     read -r -p "Enter the desktop user that launches RetroArch [${default_desktop_user}]: " DESKTOP_USER
     DESKTOP_USER="${DESKTOP_USER:-${default_desktop_user}}"
 
-    read -r -p "Enter the CRT display output name [${DEFAULT_DESKTOP_OUTPUT}]: " CRT_OUTPUT
-    CRT_OUTPUT="${CRT_OUTPUT:-${DEFAULT_DESKTOP_OUTPUT}}"
+    read -r -p "Enter the CRT display output name [${CRT_OUTPUT:-${DEFAULT_DESKTOP_OUTPUT}}]: " input_crt_output
+    CRT_OUTPUT="${input_crt_output:-${CRT_OUTPUT:-${DEFAULT_DESKTOP_OUTPUT}}}"
 
-    read -r -p "Enter the CRT super width [${DEFAULT_SUPER_WIDTH}]: " SUPER_WIDTH
-    SUPER_WIDTH="${SUPER_WIDTH:-${DEFAULT_SUPER_WIDTH}}"
+    read -r -p "Enter the CRT super width [${SUPER_WIDTH:-${DEFAULT_SUPER_WIDTH}}]: " input_super_width
+    SUPER_WIDTH="${input_super_width:-${SUPER_WIDTH:-${DEFAULT_SUPER_WIDTH}}}"
 
-    read -r -p "Enter the CRT super height [${DEFAULT_SUPER_HEIGHT}]: " SUPER_HEIGHT
-    SUPER_HEIGHT="${SUPER_HEIGHT:-${DEFAULT_SUPER_HEIGHT}}"
+    read -r -p "Enter the CRT super height [${SUPER_HEIGHT:-${DEFAULT_SUPER_HEIGHT}}]: " input_super_height
+    SUPER_HEIGHT="${input_super_height:-${SUPER_HEIGHT:-${DEFAULT_SUPER_HEIGHT}}}"
 
-    SUPER_MODE_NAME="${SUPER_WIDTH}x${SUPER_HEIGHT}_60.00"
+    SUPER_MODE_NAME="${SUPER_MODE_NAME:-${SUPER_WIDTH}x${SUPER_HEIGHT}_60.00}"
     read -r -p "Enter the xrandr mode name [${SUPER_MODE_NAME}]: " input_mode_name
     SUPER_MODE_NAME="${input_mode_name:-${SUPER_MODE_NAME}}"
 
-    read -r -p "Enter the xrandr modeline [${DEFAULT_SUPER_MODELINE}]: " SUPER_MODELINE
-    SUPER_MODELINE="${SUPER_MODELINE:-${DEFAULT_SUPER_MODELINE}}"
+    read -r -p "Enter the xrandr modeline [${SUPER_MODELINE:-${DEFAULT_SUPER_MODELINE}}]: " input_modeline
+    SUPER_MODELINE="${input_modeline:-${SUPER_MODELINE:-${DEFAULT_SUPER_MODELINE}}}"
 }
 
 collect_ps2_setup_inputs() {
-    local available_interfaces recommended_lan
+    local available_interfaces recommended_lan input_storage_path input_config_path
 
     available_interfaces="$(ls /sys/class/net | grep -v '^lo$' | tr '\n' ' ' | sed 's/ $//')"
     recommended_lan="$(detect_first_interface '^en|^eth')"
 
     echo "Available network interfaces: ${available_interfaces}"
-    read -r -p "Enter the Ethernet interface connected to the PS2 [${recommended_lan:-eth0}]: " LAN_IF
-    LAN_IF="${LAN_IF:-${recommended_lan:-eth0}}"
-    read -r -p "Enter the absolute path for PS2 game storage [${DEFAULT_STORAGE_PATH}]: " STORAGE_PATH
-    STORAGE_PATH="${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}"
-    read -r -p "Enter the absolute path for generated config [${DEFAULT_CONFIG_PATH}]: " CONFIG_PATH
-    CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}"
+    recommended_lan="${LAN_IF:-${recommended_lan:-eth0}}"
+    read -r -p "Enter the Ethernet interface connected to the PS2 [${recommended_lan}]: " LAN_IF
+    LAN_IF="${LAN_IF:-${recommended_lan}}"
+    read -r -p "Enter the absolute path for PS2 game storage [${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}]: " input_storage_path
+    STORAGE_PATH="${input_storage_path:-${STORAGE_PATH:-${DEFAULT_STORAGE_PATH}}}"
+    read -r -p "Enter the absolute path for generated config [${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}]: " input_config_path
+    CONFIG_PATH="${input_config_path:-${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}}"
 
-    SETUP_MODE="ps2"
-    WLAN_IF=""
-    DESKTOP_USER=""
-    CRT_OUTPUT=""
-    SUPER_WIDTH=""
-    SUPER_HEIGHT=""
-    SUPER_MODE_NAME=""
-    SUPER_MODELINE=""
+    # Preserve any workstation metadata from an earlier full profile so a later
+    # upgrade or uninstall can still find and manage those generated files.
+    WLAN_IF="${WLAN_IF:-}"
+    DESKTOP_USER="${DESKTOP_USER:-}"
+    CRT_OUTPUT="${CRT_OUTPUT:-}"
+    SUPER_WIDTH="${SUPER_WIDTH:-}"
+    SUPER_HEIGHT="${SUPER_HEIGHT:-}"
+    SUPER_MODE_NAME="${SUPER_MODE_NAME:-}"
+    SUPER_MODELINE="${SUPER_MODELINE:-}"
 }
 
 install_dependencies() {
-    print_info "Installing Docker, RetroArch, and display tools."
+    print_info "Installing dependencies for the ${SETUP_PROFILE} profile with the ${SERVICE_BACKEND} service backend."
+
+    apt-get update
+    if [[ "${SETUP_PROFILE}" == "full" ]]; then
+        apt-get install -y wireless-tools x11-xserver-utils retroarch
+    fi
+
+    if [[ "${SERVICE_BACKEND}" == "native" ]]; then
+        apt-get install -y samba dnsmasq
+        return
+    fi
 
     apt-get remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc >/dev/null 2>&1 || true
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg wireless-tools x11-xserver-utils retroarch
+    apt-get install -y ca-certificates curl gnupg
 
     install -m 0755 -d /etc/apt/keyrings
     . /etc/os-release
@@ -89,12 +158,6 @@ EOF
 
     apt-get update
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-}
-
-install_ps2_server_dependencies() {
-    print_info "Installing Samba and dnsmasq for the PS2 ISO server."
-    apt-get update
-    apt-get install -y samba dnsmasq
 }
 
 configure_networking() {
@@ -124,15 +187,24 @@ configure_wifi_power_service() {
 }
 
 generate_container_configs() {
-    print_info "Generating dnsmasq, Samba, and Compose configuration."
+    local dnsmasq_template
+
+    print_info "Generating Docker dnsmasq, Samba, and Compose configuration."
 
     ensure_directory "${CONFIG_PATH}"
     ensure_directory "${CONFIG_PATH}/dnsmasq"
     ensure_directory "${CONFIG_PATH}/samba"
     ensure_directory "${STORAGE_PATH}" "0775"
+    if [[ "${OPL_ENABLED}" == "1" ]]; then
+        ensure_directory "${STORAGE_PATH}/DVD" "0775"
+        ensure_directory "${STORAGE_PATH}/CD" "0775"
+        dnsmasq_template="${EMU_SFF_TEMPLATES_DIR}/ps2-dnsmasq.conf.tpl"
+    else
+        dnsmasq_template="${EMU_SFF_TEMPLATES_DIR}/dnsmasq.conf.tpl"
+    fi
 
     render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/dnsmasq.conf.tpl" \
+        "${dnsmasq_template}" \
         "${CONFIG_PATH}/dnsmasq/dnsmasq.conf" \
         "LAN_IF=${LAN_IF}"
 
@@ -150,18 +222,23 @@ generate_container_configs() {
     (cd "${CONFIG_PATH}" && docker compose up -d)
 }
 
-configure_ps2_services() {
-    local samba_backup_path
+configure_native_services() {
+    local samba_backup_path dnsmasq_template
 
-    print_info "Configuring native Samba and dnsmasq services for OPL."
+    print_info "Configuring native Samba and dnsmasq services."
     ensure_directory "${CONFIG_PATH}"
     ensure_directory "${CONFIG_PATH}/dnsmasq"
     ensure_directory "${CONFIG_PATH}/samba"
     ensure_directory "${STORAGE_PATH}" "0775"
-    ensure_directory "${STORAGE_PATH}/DVD" "0775"
-    ensure_directory "${STORAGE_PATH}/CD" "0775"
+    if [[ "${OPL_ENABLED}" == "1" ]]; then
+        ensure_directory "${STORAGE_PATH}/DVD" "0775"
+        ensure_directory "${STORAGE_PATH}/CD" "0775"
+        dnsmasq_template="${EMU_SFF_TEMPLATES_DIR}/ps2-dnsmasq.conf.tpl"
+    else
+        dnsmasq_template="${EMU_SFF_TEMPLATES_DIR}/dnsmasq.conf.tpl"
+    fi
 
-    render_template "${EMU_SFF_TEMPLATES_DIR}/ps2-dnsmasq.conf.tpl" "${CONFIG_PATH}/dnsmasq/dnsmasq.conf" "LAN_IF=${LAN_IF}"
+    render_template "${dnsmasq_template}" "${CONFIG_PATH}/dnsmasq/dnsmasq.conf" "LAN_IF=${LAN_IF}"
     render_template "${EMU_SFF_TEMPLATES_DIR}/smb.conf.tpl" "${CONFIG_PATH}/samba/smb.conf" "STORAGE_PATH=${STORAGE_PATH}"
 
     samba_backup_path="/etc/samba/smb.conf.emu-sff-backup"
@@ -175,6 +252,40 @@ configure_ps2_services() {
     systemctl restart smbd.service
     systemctl enable --now dnsmasq.service
     systemctl restart dnsmasq.service
+}
+
+remove_docker_services() {
+    if command_exists docker; then
+        docker rm -f emu-samba emu-dhcp >/dev/null 2>&1 || true
+    fi
+}
+
+remove_native_service_configuration() {
+    local managed_native=0
+
+    if [[ -f /etc/dnsmasq.d/emu-sff-ps2.conf ]] || \
+       [[ -f /etc/samba/smb.conf.emu-sff-backup ]]; then
+        managed_native=1
+    fi
+    if (( managed_native == 0 )); then
+        return
+    fi
+
+    systemctl disable --now smbd.service dnsmasq.service >/dev/null 2>&1 || true
+    rm -f /etc/dnsmasq.d/emu-sff-ps2.conf
+    if [[ -f /etc/samba/smb.conf.emu-sff-backup ]]; then
+        mv /etc/samba/smb.conf.emu-sff-backup /etc/samba/smb.conf
+    fi
+}
+
+configure_selected_services() {
+    if [[ "${SERVICE_BACKEND}" == "docker" ]]; then
+        remove_native_service_configuration
+        generate_container_configs
+    else
+        remove_docker_services
+        configure_native_services
+    fi
 }
 
 generate_crt_stack() {
@@ -286,84 +397,94 @@ do_refresh() {
 }
 
 do_setup() {
+    local requested_profile="${1:-}" previous_opl_enabled="" service_description
+
     echo "======================================"
-    echo "   emu-sff - Modular Setup"
+    echo "   emu-sff - Setup"
     echo "======================================"
 
-    collect_setup_inputs
-    ensure_directory "${CONFIG_PATH}"
-    save_state_file
-
-    if prompt_step "[1/6] Install dependencies" "Install Docker Engine, RetroArch, xrandr tooling, and Wi-Fi utilities."; then
-        install_dependencies
-    else
-        print_warn "Skipping dependency installation."
+    PREVIOUS_SETUP_PROFILE=""
+    PREVIOUS_SERVICE_BACKEND=""
+    if load_state_file; then
+        PREVIOUS_SETUP_PROFILE="${SETUP_PROFILE}"
+        PREVIOUS_SERVICE_BACKEND="${SERVICE_BACKEND}"
+        previous_opl_enabled="${OPL_ENABLED}"
+        print_info "Found existing ${PREVIOUS_SETUP_PROFILE} installation using ${PREVIOUS_SERVICE_BACKEND} services."
     fi
 
-    if prompt_step "[2/6] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
+    collect_installation_choices "${requested_profile}"
+    if [[ "${SETUP_PROFILE}" == "full" ]]; then
+        collect_setup_inputs
+    else
+        echo "This profile configures an isolated Ethernet link at 192.168.2.1/24."
+        echo "Connect the selected interface only to the PS2/network adapter."
+        collect_ps2_setup_inputs
+    fi
+    ensure_directory "${CONFIG_PATH}"
+
+    if prompt_step "[Dependencies] Install required packages" "Install packages for the ${SETUP_PROFILE} profile and ${SERVICE_BACKEND} service backend."; then
+        install_dependencies
+    else
+        print_warn "Skipping dependency installation. Required packages must already be installed."
+    fi
+
+    if prompt_step "[Networking] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
         configure_networking
     else
         print_warn "Skipping static IP configuration."
     fi
 
-    if prompt_step "[3/6] Disable Wi-Fi power saving" "Create a systemd service that keeps ${WLAN_IF} in power_save off mode."; then
-        configure_wifi_power_service
-    else
-        print_warn "Skipping Wi-Fi power configuration."
+    if [[ "${SETUP_PROFILE}" == "full" ]]; then
+        if prompt_step "[Wi-Fi] Disable Wi-Fi power saving" "Create a systemd service that keeps ${WLAN_IF} in power_save off mode."; then
+            configure_wifi_power_service
+        else
+            print_warn "Skipping Wi-Fi power configuration."
+        fi
     fi
 
-    if prompt_step "[4/6] Configure SMB/DHCP services" "Generate container config and start Samba plus dnsmasq."; then
-        generate_container_configs
+    service_description="Configure Samba and dnsmasq using the ${SERVICE_BACKEND} backend."
+    if [[ -n "${PREVIOUS_SERVICE_BACKEND}" && "${PREVIOUS_SERVICE_BACKEND}" != "${SERVICE_BACKEND}" ]]; then
+        service_description+=" The existing ${PREVIOUS_SERVICE_BACKEND} backend will be removed first."
+    fi
+    if prompt_step "[File server] Configure SMB/DHCP services" "${service_description}"; then
+        # Persist the selected backend before migration so status/uninstall reflect
+        # the intended owner even if the new service fails to start.
+        save_state_file
+        configure_selected_services
     else
-        print_warn "Skipping Docker service configuration."
+        print_warn "Skipping service configuration."
+        if [[ -n "${PREVIOUS_SERVICE_BACKEND}" ]]; then
+            SERVICE_BACKEND="${PREVIOUS_SERVICE_BACKEND}"
+            OPL_ENABLED="${previous_opl_enabled}"
+            print_warn "Keeping persisted service state on the existing ${SERVICE_BACKEND} backend."
+        fi
     fi
 
-    if prompt_step "[5/6] Configure CRT + RetroArch" "Generate a reusable 2560x240 super-resolution xrandr script, RetroArch config, launcher, and user service."; then
-        generate_crt_stack
-    else
-        print_warn "Skipping CRT and RetroArch configuration."
+    if [[ "${SETUP_PROFILE}" == "full" ]]; then
+        if prompt_step "[CRT] Configure CRT + RetroArch" "Generate a reusable 2560x240 super-resolution xrandr script, RetroArch config, launcher, and user service."; then
+            generate_crt_stack
+        else
+            print_warn "Skipping CRT and RetroArch configuration."
+        fi
     fi
 
-    if prompt_step "[6/6] Install emu-sff command launcher" "Install /usr/local/bin/emu-sff so you can launch the utility from anywhere via sudo/systemd-run."; then
+    if prompt_step "[Launcher] Install emu-sff command launcher" "Install /usr/local/bin/emu-sff so you can launch the utility from anywhere via sudo/systemd-run."; then
         install_cli_launcher
     else
         print_warn "Skipping command launcher installation."
     fi
 
+    save_state_file
+
     echo
-    print_info "Setup complete. Running status check."
+    print_info "${SETUP_PROFILE} setup complete. Running status check."
+    if [[ "${OPL_ENABLED}" == "1" ]]; then
+        print_info "Store PS2 ISOs in ${STORAGE_PATH}/DVD or ${STORAGE_PATH}/CD. In OPL, use 192.168.2.1 and share name share."
+    fi
     do_status
 }
 
 do_ps2_setup() {
-    echo "======================================"
-    echo "   emu-sff - PS2 OPL ISO Server"
-    echo "======================================"
-    echo "This configures an isolated Ethernet link at 192.168.2.1/24."
-    echo "Connect the selected interface only to the PS2/network adapter."
-
-    collect_ps2_setup_inputs
-    ensure_directory "${CONFIG_PATH}"
-    save_state_file
-
-    if prompt_step "[1/3] Install PS2 server dependencies" "Install native Samba and dnsmasq packages for Ubuntu Server on ARM."; then
-        install_ps2_server_dependencies
-    else
-        print_warn "Skipping dependency installation. Samba and dnsmasq must already be installed."
-    fi
-    if prompt_step "[2/3] Configure static LAN IP" "Assign ${LAN_IF} to 192.168.2.1/24 via Netplan."; then
-        configure_networking
-    else
-        print_warn "Skipping static IP configuration. The PS2 server needs 192.168.2.1/24 on ${LAN_IF}."
-    fi
-    if prompt_step "[3/3] Configure OPL SMB/DHCP services" "Create DVD and CD folders, then start native Samba and dnsmasq."; then
-        configure_ps2_services
-    else
-        print_warn "Skipping PS2 service configuration."
-    fi
-
-    echo
-    print_info "PS2 ISO server setup complete. Store DVD ISOs in ${STORAGE_PATH}/DVD and CD ISOs in ${STORAGE_PATH}/CD."
-    print_info "In OPL, use SMB server 192.168.2.1 and share name share."
-    do_status
+    print_warn "The ps2 command is retained for compatibility and now opens the unified setup with the PS2-only profile."
+    do_setup ps2
 }

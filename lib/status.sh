@@ -54,7 +54,16 @@ collect_status_rows() {
     local docker_state samba_state dhcp_state lan_state wifi_state retroarch_state
     local service_state armed_state detail
 
-    if [[ "${SETUP_MODE:-full}" == "ps2" ]]; then
+    normalize_install_state
+    printf 'Install profile|OK|%s\n' "${SETUP_PROFILE}"
+    printf 'Service backend|OK|%s\n' "${SERVICE_BACKEND}"
+    if [[ "${OPL_ENABLED}" == "1" ]]; then
+        printf 'PS2/OPL layout|OK|enabled\n'
+    else
+        printf 'PS2/OPL layout|OK|disabled\n'
+    fi
+
+    if [[ "${SERVICE_BACKEND}" == "native" ]]; then
         if command_exists systemctl && systemctl is-active --quiet smbd.service 2>/dev/null; then
             samba_state="OK"
         else
@@ -65,49 +74,41 @@ collect_status_rows() {
         else
             dhcp_state="ERROR"
         fi
-        printf 'Setup mode|OK|PS2 OPL ISO server\n'
         printf 'Samba service|%s|native service\n' "${samba_state}"
         printf 'Dnsmasq service|%s|native service\n' "${dhcp_state}"
-        if command_exists ip && ip addr show "${LAN_IF}" 2>/dev/null | grep -q '192.168.2.1/24'; then
-            lan_state="OK"
-            detail="192.168.2.1 configured on ${LAN_IF}"
+    else
+        if command_exists systemctl && systemctl is-active --quiet docker 2>/dev/null; then
+            docker_state="OK"
         else
-            lan_state="ERROR"
-            detail="192.168.2.1 missing on ${LAN_IF}"
+            docker_state="ERROR"
         fi
-        printf 'Static LAN IP|%s|%s\n' "${lan_state}" "${detail}"
-        return
+        if command_exists docker && check_docker_container "emu-samba"; then
+            samba_state="OK"
+        else
+            samba_state="ERROR"
+        fi
+        if command_exists docker && check_docker_container "emu-dhcp"; then
+            dhcp_state="OK"
+        else
+            dhcp_state="ERROR"
+        fi
+        printf 'Docker engine|%s|%s\n' "${docker_state}" ""
+        printf 'Samba container|%s|%s\n' "${samba_state}" ""
+        printf 'Dnsmasq container|%s|%s\n' "${dhcp_state}" ""
     fi
 
-    if command_exists systemctl && systemctl is-active --quiet docker 2>/dev/null; then
-        docker_state="OK"
-    else
-        docker_state="ERROR"
-    fi
-
-    if command_exists docker && check_docker_container "emu-samba"; then
-        samba_state="OK"
-    else
-        samba_state="ERROR"
-    fi
-
-    if command_exists docker && check_docker_container "emu-dhcp"; then
-        dhcp_state="OK"
-    else
-        dhcp_state="ERROR"
-    fi
-
-    if command_exists ip && ip addr show 2>/dev/null | grep -q '192.168.2.1/24'; then
+    if [[ -n "${LAN_IF:-}" ]] && command_exists ip && ip addr show "${LAN_IF}" 2>/dev/null | grep -q '192.168.2.1/24'; then
         lan_state="OK"
-        detail="192.168.2.1 configured"
+        detail="192.168.2.1 configured on ${LAN_IF}"
     else
         lan_state="ERROR"
-        detail="192.168.2.1 missing"
+        detail="192.168.2.1 missing on ${LAN_IF:-unconfigured interface}"
     fi
-    printf 'Docker engine|%s|%s\n' "${docker_state}" ""
-    printf 'Samba container|%s|%s\n' "${samba_state}" ""
-    printf 'Dnsmasq container|%s|%s\n' "${dhcp_state}" ""
     printf 'Static LAN IP|%s|%s\n' "${lan_state}" "${detail}"
+
+    if [[ "${SETUP_PROFILE}" != "full" ]]; then
+        return
+    fi
 
     if command_exists systemctl && systemctl is-active --quiet wifi-power-save-off.service 2>/dev/null; then
         wifi_state="OK"

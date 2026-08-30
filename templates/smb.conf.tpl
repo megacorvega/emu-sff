@@ -7,7 +7,7 @@ allow insecure wide links = yes
 
 [share]
 comment = shared folder
-path = /share
+path = __STORAGE_PATH__
 browseable = yes
 writable = yes
 create mask = 0777

@@ -6,12 +6,11 @@
 
 # emu-sff
 
-`emu-sff` configures a Debian or Ubuntu machine as a legacy-game server and, optionally, a CRT-oriented RetroArch workstation. It can:
+`emu-sff` configures a Debian or Ubuntu machine as a retro game server and, optionally, a CRT-oriented RetroArch emulation rig. It can:
 
 1. Serve games over an isolated Ethernet connection using DHCP and an SMB guest share.
 2. Create the `DVD/` and `CD/` layout expected by PS2 Open PS2 Loader (OPL).
-3. Keep Wi-Fi power saving disabled for more reliable inbound file transfers.
-4. Generate RetroArch and `xrandr` helpers for a 15 kHz CRT super-resolution workflow.
+3. Generate RetroArch and `xrandr` helpers for a 15 kHz CRT super-resolution output.
 
 > [!NOTE]
 > Setup choices and paths are saved in `/etc/emu-sff/emu-sff.env`. The `status`, repeated `setup`, and `uninstall` commands use this file to identify the active profile and service backend.
@@ -76,12 +75,6 @@ You can rerun `sudo ./emu-sff.sh setup` to change profiles or service backends. 
 If you deliberately switch between `native` and `docker`, setup removes the emu-sff-managed old backend before starting the new one. This prevents two Samba or dnsmasq instances from competing for the same network ports.
 
 Changing the storage path updates the share configuration but does not move existing game files. Move the files yourself or keep the existing path when prompted.
-
-The old PS2 command remains as a compatibility shortcut. It opens the unified wizard with the `ps2` profile preselected:
-
-```bash
-sudo ./emu-sff.sh ps2
-```
 
 ## Setup steps
 

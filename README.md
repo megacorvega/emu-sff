@@ -6,7 +6,9 @@
 
 # emu-sff
 
-`emu-sff` configures a Debian or Ubuntu machine as a retro game server and, optionally, a CRT-oriented RetroArch emulation rig. It can:
+`emu-sff` configures a Debian or Ubuntu machine as a retro game server and, optionally, a CRT-oriented RetroArch emulation rig. 
+
+It can:
 
 1. Serve games over an isolated Ethernet connection using DHCP and an SMB guest share.
 2. Create the `DVD/` and `CD/` layout expected by PS2 Open PS2 Loader (OPL).

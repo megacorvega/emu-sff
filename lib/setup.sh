@@ -201,6 +201,10 @@ collect_ps2_setup_inputs() {
     SUPER_MODELINE="${SUPER_MODELINE:-}"
     VIDEO_OUTPUT_MODE="${VIDEO_OUTPUT_MODE:-${DEFAULT_VIDEO_OUTPUT_MODE}}"
     COMPOSITE_TV_NORM="${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}"
+    COMPOSITE_MARGIN_LEFT="${COMPOSITE_MARGIN_LEFT:-${DEFAULT_COMPOSITE_MARGIN_LEFT}}"
+    COMPOSITE_MARGIN_RIGHT="${COMPOSITE_MARGIN_RIGHT:-${DEFAULT_COMPOSITE_MARGIN_RIGHT}}"
+    COMPOSITE_MARGIN_TOP="${COMPOSITE_MARGIN_TOP:-${DEFAULT_COMPOSITE_MARGIN_TOP}}"
+    COMPOSITE_MARGIN_BOTTOM="${COMPOSITE_MARGIN_BOTTOM:-${DEFAULT_COMPOSITE_MARGIN_BOTTOM}}"
     RETROARCH_AUTOSTART="${RETROARCH_AUTOSTART:-0}"
 }
 
@@ -361,6 +365,94 @@ configure_selected_services() {
     fi
 }
 
+validate_composite_margin() {
+    local name="$1" value="$2"
+
+    if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} > 200 )); then
+        print_error "${name} margin must be a whole number from 0 through 200 (received: ${value})."
+        return 1
+    fi
+}
+
+composite_connector_name() {
+    local connector_path connector_base
+
+    for connector_path in /sys/class/drm/card*-Composite-* /sys/class/drm/card*-composite-*; do
+        if [[ -e "${connector_path}" ]]; then
+            connector_base="$(basename "${connector_path}")"
+            printf '%s\n' "${connector_base#*-}"
+            return 0
+        fi
+    done
+    printf 'Composite-1\n'
+}
+
+apply_composite_margins() {
+    local cmdline_path connector mode_spec
+
+    if [[ -f /boot/firmware/cmdline.txt ]]; then
+        cmdline_path="/boot/firmware/cmdline.txt"
+    elif [[ -f /boot/cmdline.txt ]]; then
+        cmdline_path="/boot/cmdline.txt"
+    else
+        print_error "Could not find the Raspberry Pi kernel command line."
+        return 1
+    fi
+
+    validate_composite_margin "Left" "${COMPOSITE_MARGIN_LEFT}"
+    validate_composite_margin "Right" "${COMPOSITE_MARGIN_RIGHT}"
+    validate_composite_margin "Top" "${COMPOSITE_MARGIN_TOP}"
+    validate_composite_margin "Bottom" "${COMPOSITE_MARGIN_BOTTOM}"
+
+    connector="$(composite_connector_name)"
+    case "${COMPOSITE_TV_NORM}" in
+        PAL|PAL-N|SECAM) mode_spec="720x576@50i" ;;
+        *) mode_spec="720x480@60i" ;;
+    esac
+
+    cp -n "${cmdline_path}" "${cmdline_path}.emu-sff-backup"
+    sed -i -E "s|[[:space:]]+video=${connector}:[^[:space:]]+||g" "${cmdline_path}"
+    sed -i "1 s/$/ video=${connector}:${mode_spec},margin_left=${COMPOSITE_MARGIN_LEFT},margin_right=${COMPOSITE_MARGIN_RIGHT},margin_top=${COMPOSITE_MARGIN_TOP},margin_bottom=${COMPOSITE_MARGIN_BOTTOM}/" "${cmdline_path}"
+
+    print_info "Set ${connector} margins to left=${COMPOSITE_MARGIN_LEFT}, right=${COMPOSITE_MARGIN_RIGHT}, top=${COMPOSITE_MARGIN_TOP}, bottom=${COMPOSITE_MARGIN_BOTTOM}."
+    print_warn "Reboot to apply the new composite margins."
+}
+
+do_composite_margins() {
+    local input_value
+
+    if ! load_state_file; then
+        print_error "No emu-sff installation state found. Run setup first."
+        return 1
+    fi
+    if [[ "${VIDEO_OUTPUT_MODE}" != "rpi-composite" ]]; then
+        print_error "The saved video path is ${VIDEO_OUTPUT_MODE}, not rpi-composite."
+        return 1
+    fi
+
+    if (( $# == 4 )); then
+        COMPOSITE_MARGIN_LEFT="$1"
+        COMPOSITE_MARGIN_RIGHT="$2"
+        COMPOSITE_MARGIN_TOP="$3"
+        COMPOSITE_MARGIN_BOTTOM="$4"
+    elif (( $# == 0 )); then
+        read -r -p "Left margin [${COMPOSITE_MARGIN_LEFT}]: " input_value
+        COMPOSITE_MARGIN_LEFT="${input_value:-${COMPOSITE_MARGIN_LEFT}}"
+        read -r -p "Right margin [${COMPOSITE_MARGIN_RIGHT}]: " input_value
+        COMPOSITE_MARGIN_RIGHT="${input_value:-${COMPOSITE_MARGIN_RIGHT}}"
+        read -r -p "Top margin [${COMPOSITE_MARGIN_TOP}]: " input_value
+        COMPOSITE_MARGIN_TOP="${input_value:-${COMPOSITE_MARGIN_TOP}}"
+        read -r -p "Bottom margin [${COMPOSITE_MARGIN_BOTTOM}]: " input_value
+        COMPOSITE_MARGIN_BOTTOM="${input_value:-${COMPOSITE_MARGIN_BOTTOM}}"
+    else
+        print_error "Usage: sudo ./emu-sff.sh composite-margins [LEFT RIGHT TOP BOTTOM]"
+        return 1
+    fi
+
+    apply_composite_margins
+    save_state_file
+}
+
 configure_rpi_composite_output() {
     local boot_config cmdline_path
 
@@ -404,6 +496,12 @@ configure_rpi_composite_output() {
     else
         sed -i "1 s/$/ vc4.tv_norm=${COMPOSITE_TV_NORM}/" "${cmdline_path}"
     fi
+
+    COMPOSITE_MARGIN_LEFT="${COMPOSITE_MARGIN_LEFT:-${DEFAULT_COMPOSITE_MARGIN_LEFT}}"
+    COMPOSITE_MARGIN_RIGHT="${COMPOSITE_MARGIN_RIGHT:-${DEFAULT_COMPOSITE_MARGIN_RIGHT}}"
+    COMPOSITE_MARGIN_TOP="${COMPOSITE_MARGIN_TOP:-${DEFAULT_COMPOSITE_MARGIN_TOP}}"
+    COMPOSITE_MARGIN_BOTTOM="${COMPOSITE_MARGIN_BOTTOM:-${DEFAULT_COMPOSITE_MARGIN_BOTTOM}}"
+    apply_composite_margins
 
     print_info "Configured Raspberry Pi composite output (${COMPOSITE_TV_NORM}) in ${boot_config}."
     print_warn "HDMI output will be disabled and a reboot is required before composite output is active."

@@ -129,15 +129,19 @@ main() {
         refresh)
             do_refresh
             ;;
+        composite-margins|overscan)
+            shift
+            do_composite_margins "$@"
+            ;;
         "")
             run_interactive_utility
             ;;
         *)
             echo "Unknown command: ${1}"
-            echo "Usage: sudo ./emu-sff.sh [setup|ps2|status|uninstall|refresh]"
+            echo "Usage: sudo ./emu-sff.sh [setup|ps2|status|uninstall|refresh|composite-margins]"
             exit 1
             ;;
     esac
 }
 
-main "${1:-}"
+main "$@"

@@ -156,6 +156,9 @@ The default modeline is only a starting point. Adjust its porch and sync timings
 | `sudo ./emu-sff.sh status` | Check the saved profile, backend, network, and optional workstation components |
 | `sudo ./emu-sff.sh uninstall` | Remove generated configuration and managed services |
 | `sudo ./emu-sff.sh refresh` | Refresh the installed global launcher from the current checkout |
+| `sudo ./emu-sff.sh composite-margins [L R T B]` | Adjust Raspberry Pi composite overscan margins |
+
+For example, `sudo ./emu-sff.sh composite-margins 24 24 16 16` pulls all four edges inward. Increase the margin for an edge that is still cut off; decrease it if that edge has too much black border. Changes require a reboot.
 
 ## Status and uninstall
 

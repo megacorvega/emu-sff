@@ -18,6 +18,33 @@ check_user_service_file() {
     [[ -f "${service_path}" ]]
 }
 
+check_retroarch_autostart_file() {
+    local desktop_home autostart_path
+
+    desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
+    autostart_path="${desktop_home}/.config/autostart/emu-sff-retroarch.desktop"
+    [[ -f "${autostart_path}" ]]
+}
+
+check_rpi_composite_config() {
+    local boot_config cmdline_path
+
+    if [[ -f /boot/firmware/config.txt ]]; then
+        boot_config="/boot/firmware/config.txt"
+        cmdline_path="/boot/firmware/cmdline.txt"
+    elif [[ -f /boot/config.txt ]]; then
+        boot_config="/boot/config.txt"
+        cmdline_path="/boot/cmdline.txt"
+    else
+        return 1
+    fi
+
+    [[ -f "${cmdline_path}" ]] && \
+        grep -Eq '^[[:space:]]*enable_tvout=1([[:space:]]*(#.*)?)$' "${boot_config}" && \
+        grep -Eq '^[[:space:]]*dtoverlay=vc4-kms-v3d([^#]*,)?composite([,[:space:]]|$)' "${boot_config}" && \
+        grep -Eq "(^|[[:space:]])vc4\\.tv_norm=${COMPOSITE_TV_NORM}([[:space:]]|$)" "${cmdline_path}"
+}
+
 check_crt_armed() {
     local desktop_home safety_path
 
@@ -52,7 +79,7 @@ status_value() {
 
 collect_status_rows() {
     local docker_state samba_state dhcp_state lan_state wifi_state retroarch_state
-    local service_state armed_state detail
+    local service_state armed_state autostart_state detail
 
     normalize_install_state
     printf 'Install profile|OK|%s\n' "${SETUP_PROFILE}"
@@ -126,14 +153,27 @@ collect_status_rows() {
     fi
     printf 'RetroArch binary|%s|%s\n' "${retroarch_state}" ""
 
-    if [[ -n "${DESKTOP_USER:-}" ]] && check_user_service_file; then
+    if [[ "${VIDEO_OUTPUT_MODE:-xrandr}" == "rpi-composite" ]]; then
+        if check_rpi_composite_config; then
+            service_state="OK"
+            detail="firmware/KMS ${COMPOSITE_TV_NORM} composite"
+        else
+            service_state="WARN"
+            detail="Pi boot configuration missing or incomplete"
+        fi
+    elif [[ -n "${DESKTOP_USER:-}" ]] && check_user_service_file; then
         service_state="OK"
+        detail="xrandr helper generated"
     else
         service_state="WARN"
+        detail="xrandr helper missing"
     fi
-    printf 'CRT user service|%s|%s\n' "${service_state}" ""
+    printf 'Video output path|%s|%s\n' "${service_state}" "${detail}"
 
-    if [[ -n "${DESKTOP_USER:-}" ]] && check_crt_armed; then
+    if [[ "${VIDEO_OUTPUT_MODE:-xrandr}" == "rpi-composite" ]]; then
+        armed_state="OK"
+        detail="not required for Pi composite"
+    elif [[ -n "${DESKTOP_USER:-}" ]] && check_crt_armed; then
         armed_state="WARN"
         detail="output armed"
     else
@@ -141,6 +181,18 @@ collect_status_rows() {
         detail="output disarmed"
     fi
     printf 'CRT armed state|%s|%s\n' "${armed_state}" "${detail}"
+
+    if [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]] && [[ -n "${DESKTOP_USER:-}" ]] && check_retroarch_autostart_file; then
+        autostart_state="OK"
+        detail="enabled at desktop login"
+    elif [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]]; then
+        autostart_state="WARN"
+        detail="requested but launcher is missing"
+    else
+        autostart_state="OK"
+        detail="disabled"
+    fi
+    printf 'RetroArch autostart|%s|%s\n' "${autostart_state}" "${detail}"
 }
 
 render_status_screen() {
@@ -156,7 +208,7 @@ render_status_screen() {
     storage_usage="$(menu_storage_usage)"
     network_speed="$(menu_network_speed)"
     line1="Desktop user: ${DESKTOP_USER:-n/a}"
-    line2="CRT output: ${CRT_OUTPUT:-n/a}"
+    line2="Video path: ${VIDEO_OUTPUT_MODE:-xrandr}"
     line3="CRT mode: ${SUPER_MODE_NAME:-n/a}"
     line4="State file: ${EMU_SFF_STATE_FILE}"
 

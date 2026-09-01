@@ -12,6 +12,8 @@ EMU_SFF_LAUNCHER_PATH="/usr/local/bin/emu-sff"
 DEFAULT_CONFIG_PATH="/opt/emu-sff"
 DEFAULT_STORAGE_PATH="/srv/emu-sff/storage"
 DEFAULT_DESKTOP_OUTPUT="DP-1"
+DEFAULT_VIDEO_OUTPUT_MODE="xrandr"
+DEFAULT_COMPOSITE_TV_NORM="NTSC"
 DEFAULT_SUPER_WIDTH="2560"
 DEFAULT_SUPER_HEIGHT="240"
 DEFAULT_SUPER_MODE_NAME="2560x240_60.00"
@@ -148,6 +150,9 @@ save_state_file() {
         printf 'STORAGE_PATH=%q\n' "${STORAGE_PATH}"
         printf 'CONFIG_PATH=%q\n' "${CONFIG_PATH}"
         printf 'DESKTOP_USER=%q\n' "${DESKTOP_USER}"
+        printf 'VIDEO_OUTPUT_MODE=%q\n' "${VIDEO_OUTPUT_MODE:-${DEFAULT_VIDEO_OUTPUT_MODE}}"
+        printf 'COMPOSITE_TV_NORM=%q\n' "${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}"
+        printf 'RETROARCH_AUTOSTART=%q\n' "${RETROARCH_AUTOSTART:-0}"
         printf 'CRT_OUTPUT=%q\n' "${CRT_OUTPUT}"
         printf 'SUPER_WIDTH=%q\n' "${SUPER_WIDTH}"
         printf 'SUPER_HEIGHT=%q\n' "${SUPER_HEIGHT}"
@@ -174,6 +179,9 @@ normalize_install_state() {
             OPL_ENABLED="0"
         fi
     fi
+    VIDEO_OUTPUT_MODE="${VIDEO_OUTPUT_MODE:-${DEFAULT_VIDEO_OUTPUT_MODE}}"
+    COMPOSITE_TV_NORM="${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}"
+    RETROARCH_AUTOSTART="${RETROARCH_AUTOSTART:-0}"
 }
 
 load_state_file() {

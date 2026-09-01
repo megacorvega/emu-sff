@@ -6,11 +6,12 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 remove_user_crt_stack() {
-    local desktop_home user_config_dir user_service_path
+    local desktop_home user_config_dir user_service_path autostart_path
 
     desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
     user_config_dir="${desktop_home}/.config/emu-sff"
     user_service_path="${desktop_home}/.config/systemd/user/emu-sff-crt-mode.service"
+    autostart_path="${desktop_home}/.config/autostart/emu-sff-retroarch.desktop"
 
     if command -v runuser >/dev/null 2>&1; then
         runuser -u "${DESKTOP_USER}" -- systemctl --user disable --now emu-sff-crt-mode.service >/dev/null 2>&1 || true
@@ -18,6 +19,7 @@ remove_user_crt_stack() {
     fi
 
     rm -f "${user_service_path}"
+    rm -f "${autostart_path}"
     rm -rf "${user_config_dir}"
 }
 

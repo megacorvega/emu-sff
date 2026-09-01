@@ -12,7 +12,8 @@ It can:
 
 1. Serve games over an isolated Ethernet connection using DHCP and an SMB guest share.
 2. Create the `DVD/` and `CD/` layout expected by PS2 Open PS2 Loader (OPL).
-3. Generate RetroArch and `xrandr` helpers for a 15 kHz CRT super-resolution output.
+3. Generate RetroArch helpers for either a 15 kHz `xrandr` output or the Raspberry Pi hardware composite jack.
+4. Optionally start RetroArch automatically at desktop login.
 
 > [!NOTE]
 > Setup choices and paths are saved in `/etc/emu-sff/emu-sff.env`. The `status`, repeated `setup`, and `uninstall` commands use this file to identify the active profile and service backend.
@@ -40,7 +41,7 @@ Setup separates the machine's role from the way Samba and dnsmasq are installed.
 
 | Profile | File server | PS2/OPL layout | Wi-Fi tuning | RetroArch and CRT helpers |
 | --- | --- | --- | --- | --- |
-| `full` | Yes | Optional | Yes | Yes |
+| `full` | Yes | Optional | Yes | Yes, including optional autostart |
 | `ps2` | Yes | Always enabled | No | No |
 
 Use `full` for a desktop emulation workstation. Use `ps2` for a small headless server, such as an Ubuntu Server Raspberry Pi connected directly to a PS2.
@@ -86,12 +87,29 @@ Depending on the selected profile and backend, the wizard can:
 2. Assign `192.168.2.1/24` to the selected Ethernet interface using Netplan.
 3. Disable Wi-Fi power saving for the full profile.
 4. Generate and start Samba and dnsmasq using the selected backend.
-5. Generate RetroArch and CRT helpers for the full profile.
+5. Configure the selected CRT path and generate RetroArch helpers for the full profile.
 6. Install the optional global `emu-sff` launcher.
 
 The wizard prompts before performing each step.
 
-## CRT workflow
+## CRT workflows
+
+Setup offers `xrandr` and `rpi-composite` video paths. The generated RetroArch launcher matches the selected path, and setup can install an XDG autostart entry that launches RetroArch when the selected desktop user logs in.
+
+### Raspberry Pi 4 composite output
+
+Choose `rpi-composite` to use the Pi 4's 3.5 mm A/V jack with a TRRS-to-RCA cable. Setup:
+
+- enables TV output and the KMS composite overlay in `config.txt`;
+- sets `vc4.tv_norm` in `cmdline.txt` (NTSC by default, with PAL and other supported norms selectable);
+- generates a 4:3 RetroArch profile without `xrandr` or dynamic CRT resolution switching;
+- optionally creates `~/.config/autostart/emu-sff-retroarch.desktop`.
+
+The installer keeps one-time `.emu-sff-backup` copies of the boot files before changing them. Uninstall leaves the active boot settings and those backups in place to avoid overwriting later boot-file edits; restore the backups manually if you want to revert composite output. Enabling composite disables HDMI output and requires a reboot. RetroArch autostart occurs at graphical desktop login, so configure desktop autologin separately if you want a power-on appliance experience.
+
+The Pi 4 A/V jack uses a TRRS pinout; a physically fitting camcorder cable is not necessarily wired correctly for Raspberry Pi.
+
+### xrandr super-resolution
 
 The CRT workflow assumes:
 
@@ -114,6 +132,7 @@ Setup generates these files for the selected desktop user:
 - `~/.config/emu-sff/retroarch-crt.cfg`
 - `~/.config/emu-sff/launch-retroarch-crt.sh`
 - `~/.config/systemd/user/emu-sff-crt-mode.service`
+- `~/.config/autostart/emu-sff-retroarch.desktop` (when autostart is selected)
 
 ### CRT safety gate
 

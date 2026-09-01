@@ -61,7 +61,8 @@ collect_installation_choices() {
 
 collect_setup_inputs() {
     local available_interfaces recommended_lan recommended_wlan default_desktop_user
-    local input_storage_path input_config_path input_crt_output input_super_width input_super_height input_mode_name input_modeline
+    local default_video_output input_storage_path input_config_path input_crt_output input_super_width input_super_height input_mode_name input_modeline
+    local input_video_output input_tv_norm input_autostart
 
     available_interfaces="$(ls /sys/class/net | grep -v '^lo$' | tr '\n' ' ' | sed 's/ $//')"
     recommended_lan="$(detect_first_interface '^en|^eth')"
@@ -87,6 +88,75 @@ collect_setup_inputs() {
     default_desktop_user="${DESKTOP_USER:-${default_desktop_user}}"
     read -r -p "Enter the desktop user that launches RetroArch [${default_desktop_user}]: " DESKTOP_USER
     DESKTOP_USER="${DESKTOP_USER:-${default_desktop_user}}"
+
+    default_video_output="${VIDEO_OUTPUT_MODE:-}"
+    if [[ -z "${default_video_output}" ]]; then
+        if [[ -r /proc/device-tree/model ]] && grep -q 'Raspberry Pi' /proc/device-tree/model; then
+            default_video_output="rpi-composite"
+        else
+            default_video_output="${DEFAULT_VIDEO_OUTPUT_MODE}"
+        fi
+    fi
+    read -r -p "Video output method: xrandr or rpi-composite [${default_video_output}]: " input_video_output
+    VIDEO_OUTPUT_MODE="${input_video_output:-${default_video_output}}"
+    case "${VIDEO_OUTPUT_MODE}" in
+        xrandr) ;;
+        rpi-composite|composite) VIDEO_OUTPUT_MODE="rpi-composite" ;;
+        *)
+            print_error "Unknown video output method: ${VIDEO_OUTPUT_MODE}. Use xrandr or rpi-composite."
+            exit 1
+            ;;
+    esac
+
+    if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+        read -r -p "Composite TV standard (NTSC, PAL, PAL60, etc.) [${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}]: " input_tv_norm
+        COMPOSITE_TV_NORM="${input_tv_norm:-${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}}"
+        case "${COMPOSITE_TV_NORM}" in
+            NTSC|NTSC-J|NTSC-443|PAL|PAL-M|PAL-N|PAL60|SECAM) ;;
+            *)
+                print_error "Unsupported composite TV standard: ${COMPOSITE_TV_NORM}."
+                exit 1
+                ;;
+        esac
+    else
+        COMPOSITE_TV_NORM="${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}"
+    fi
+
+    if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+        read -r -p "Start RetroArch automatically at desktop login? [Y/n]: " input_autostart
+        input_autostart="${input_autostart:-Y}"
+    else
+        read -r -p "Start RetroArch automatically at desktop login? [y/N]: " input_autostart
+        input_autostart="${input_autostart:-N}"
+    fi
+    case "${input_autostart}" in
+        [Yy]*) RETROARCH_AUTOSTART="1" ;;
+        [Nn]*) RETROARCH_AUTOSTART="0" ;;
+        *)
+            print_error "Please answer yes or no for RetroArch autostart."
+            exit 1
+            ;;
+    esac
+
+    if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+        CRT_OUTPUT="Composite-1"
+        SUPER_WIDTH="720"
+        case "${COMPOSITE_TV_NORM}" in
+            PAL|PAL-N|SECAM) SUPER_HEIGHT="576" ;;
+            *) SUPER_HEIGHT="480" ;;
+        esac
+        SUPER_MODE_NAME="composite-${COMPOSITE_TV_NORM}"
+        SUPER_MODELINE=""
+        return
+    fi
+
+    if [[ "${SUPER_MODE_NAME:-}" == composite-* ]]; then
+        CRT_OUTPUT="${DEFAULT_DESKTOP_OUTPUT}"
+        SUPER_WIDTH="${DEFAULT_SUPER_WIDTH}"
+        SUPER_HEIGHT="${DEFAULT_SUPER_HEIGHT}"
+        SUPER_MODE_NAME="${DEFAULT_SUPER_MODE_NAME}"
+        SUPER_MODELINE="${DEFAULT_SUPER_MODELINE}"
+    fi
 
     read -r -p "Enter the CRT display output name [${CRT_OUTPUT:-${DEFAULT_DESKTOP_OUTPUT}}]: " input_crt_output
     CRT_OUTPUT="${input_crt_output:-${CRT_OUTPUT:-${DEFAULT_DESKTOP_OUTPUT}}}"
@@ -129,6 +199,9 @@ collect_ps2_setup_inputs() {
     SUPER_HEIGHT="${SUPER_HEIGHT:-}"
     SUPER_MODE_NAME="${SUPER_MODE_NAME:-}"
     SUPER_MODELINE="${SUPER_MODELINE:-}"
+    VIDEO_OUTPUT_MODE="${VIDEO_OUTPUT_MODE:-${DEFAULT_VIDEO_OUTPUT_MODE}}"
+    COMPOSITE_TV_NORM="${COMPOSITE_TV_NORM:-${DEFAULT_COMPOSITE_TV_NORM}}"
+    RETROARCH_AUTOSTART="${RETROARCH_AUTOSTART:-0}"
 }
 
 install_dependencies() {
@@ -288,8 +361,56 @@ configure_selected_services() {
     fi
 }
 
+configure_rpi_composite_output() {
+    local boot_config cmdline_path
+
+    if [[ -f /boot/firmware/config.txt ]]; then
+        boot_config="/boot/firmware/config.txt"
+        cmdline_path="/boot/firmware/cmdline.txt"
+    elif [[ -f /boot/config.txt ]]; then
+        boot_config="/boot/config.txt"
+        cmdline_path="/boot/cmdline.txt"
+    else
+        print_error "Could not find the Raspberry Pi boot config (config.txt)."
+        return 1
+    fi
+
+    if [[ ! -f "${cmdline_path}" ]]; then
+        print_error "Could not find Raspberry Pi kernel command line at ${cmdline_path}."
+        return 1
+    fi
+
+    cp -n "${boot_config}" "${boot_config}.emu-sff-backup"
+    cp -n "${cmdline_path}" "${cmdline_path}.emu-sff-backup"
+
+    # Pi 4 requires TV out to be enabled, and current KMS-based Raspberry Pi OS
+    # also requires the composite parameter on the vc4-kms-v3d overlay.
+    if grep -Eq '^[[:space:]]*enable_tvout=' "${boot_config}"; then
+        sed -i -E 's/^[[:space:]]*enable_tvout=.*/enable_tvout=1/' "${boot_config}"
+    else
+        printf '\n# Enabled by emu-sff for the 3.5 mm A/V jack\nenable_tvout=1\n' >> "${boot_config}"
+    fi
+
+    if ! grep -Eq '^[[:space:]]*dtoverlay=vc4-kms-v3d([^#]*,)?composite([,[:space:]]|$)' "${boot_config}"; then
+        if grep -Eq '^[[:space:]]*dtoverlay=vc4-kms-v3d([,[:space:]]|$)' "${boot_config}"; then
+            sed -i -E '/^[[:space:]]*dtoverlay=vc4-kms-v3d([,[:space:]]|$)/ s/^([[:space:]]*dtoverlay=vc4-kms-v3d[^#[:space:]]*)([[:space:]]*(#.*)?)$/\1,composite\2/' "${boot_config}"
+        else
+            printf 'dtoverlay=vc4-kms-v3d,composite\n' >> "${boot_config}"
+        fi
+    fi
+
+    if grep -Eq '(^|[[:space:]])vc4\.tv_norm=' "${cmdline_path}"; then
+        sed -i -E "s/(^|[[:space:]])vc4\.tv_norm=[^[:space:]]+/\\1vc4.tv_norm=${COMPOSITE_TV_NORM}/" "${cmdline_path}"
+    else
+        sed -i "1 s/$/ vc4.tv_norm=${COMPOSITE_TV_NORM}/" "${cmdline_path}"
+    fi
+
+    print_info "Configured Raspberry Pi composite output (${COMPOSITE_TV_NORM}) in ${boot_config}."
+    print_warn "HDMI output will be disabled and a reboot is required before composite output is active."
+}
+
 generate_crt_stack() {
-    local desktop_home user_config_dir user_service_dir launcher_path crt_script_path safety_path arm_path disarm_path
+    local desktop_home user_config_dir user_service_dir autostart_dir launcher_path crt_script_path safety_path arm_path disarm_path retroarch_config_template
 
     desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
     if [[ -z "${desktop_home}" ]]; then
@@ -299,6 +420,7 @@ generate_crt_stack() {
 
     user_config_dir="${desktop_home}/.config/emu-sff"
     user_service_dir="${desktop_home}/.config/systemd/user"
+    autostart_dir="${desktop_home}/.config/autostart"
     launcher_path="${user_config_dir}/launch-retroarch-crt.sh"
     crt_script_path="${user_config_dir}/apply-crt-mode.sh"
     safety_path="${user_config_dir}/crt-safety.conf"
@@ -307,38 +429,33 @@ generate_crt_stack() {
 
     ensure_directory "${user_config_dir}"
     ensure_directory "${user_service_dir}"
+    ensure_directory "${autostart_dir}"
+
+    if [[ "${VIDEO_OUTPUT_MODE}" == "xrandr" ]]; then
+        render_template \
+            "${EMU_SFF_TEMPLATES_DIR}/crt-mode.sh.tpl" \
+            "${crt_script_path}" \
+            "CRT_OUTPUT=${CRT_OUTPUT}" \
+            "SUPER_MODE_NAME=${SUPER_MODE_NAME}" \
+            "SUPER_MODELINE=${SUPER_MODELINE}" \
+            "CRT_SAFETY_PATH=${safety_path}"
+        chmod 0755 "${crt_script_path}"
+
+        render_template "${EMU_SFF_TEMPLATES_DIR}/crt-safety.conf.tpl" "${safety_path}" \
+            "SUPER_MODE_NAME=${SUPER_MODE_NAME}" "SUPER_MODELINE=${SUPER_MODELINE}"
+        render_template "${EMU_SFF_TEMPLATES_DIR}/crt-arm-toggle.sh.tpl" "${arm_path}" \
+            "CRT_SAFETY_PATH=${safety_path}" "CRT_ARMED_VALUE=1"
+        render_template "${EMU_SFF_TEMPLATES_DIR}/crt-arm-toggle.sh.tpl" "${disarm_path}" \
+            "CRT_SAFETY_PATH=${safety_path}" "CRT_ARMED_VALUE=0"
+        chmod 0755 "${arm_path}" "${disarm_path}"
+        retroarch_config_template="${EMU_SFF_TEMPLATES_DIR}/retroarch-crt.cfg.tpl"
+    else
+        rm -f "${crt_script_path}" "${safety_path}" "${arm_path}" "${disarm_path}"
+        retroarch_config_template="${EMU_SFF_TEMPLATES_DIR}/retroarch-composite.cfg.tpl"
+    fi
 
     render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/crt-mode.sh.tpl" \
-        "${crt_script_path}" \
-        "CRT_OUTPUT=${CRT_OUTPUT}" \
-        "SUPER_MODE_NAME=${SUPER_MODE_NAME}" \
-        "SUPER_MODELINE=${SUPER_MODELINE}" \
-        "CRT_SAFETY_PATH=${safety_path}"
-    chmod 0755 "${crt_script_path}"
-
-    render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/crt-safety.conf.tpl" \
-        "${safety_path}" \
-        "SUPER_MODE_NAME=${SUPER_MODE_NAME}" \
-        "SUPER_MODELINE=${SUPER_MODELINE}"
-
-    render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/crt-arm-toggle.sh.tpl" \
-        "${arm_path}" \
-        "CRT_SAFETY_PATH=${safety_path}" \
-        "CRT_ARMED_VALUE=1"
-    chmod 0755 "${arm_path}"
-
-    render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/crt-arm-toggle.sh.tpl" \
-        "${disarm_path}" \
-        "CRT_SAFETY_PATH=${safety_path}" \
-        "CRT_ARMED_VALUE=0"
-    chmod 0755 "${disarm_path}"
-
-    render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/retroarch-crt.cfg.tpl" \
+        "${retroarch_config_template}" \
         "${user_config_dir}/retroarch-crt.cfg" \
         "SUPER_WIDTH=${SUPER_WIDTH}" \
         "SUPER_HEIGHT=${SUPER_HEIGHT}"
@@ -348,15 +465,25 @@ generate_crt_stack() {
         "${launcher_path}" \
         "CRT_SCRIPT_PATH=${crt_script_path}" \
         "RETROARCH_CONFIG_PATH=${user_config_dir}/retroarch-crt.cfg" \
-        "CRT_SAFETY_PATH=${safety_path}"
+        "CRT_SAFETY_PATH=${safety_path}" \
+        "VIDEO_OUTPUT_MODE=${VIDEO_OUTPUT_MODE}"
     chmod 0755 "${launcher_path}"
 
-    render_template \
-        "${EMU_SFF_TEMPLATES_DIR}/retroarch-crt-setup.service.tpl" \
-        "${user_service_dir}/emu-sff-crt-mode.service" \
-        "CRT_SCRIPT_PATH=${crt_script_path}"
+    if [[ "${VIDEO_OUTPUT_MODE}" == "xrandr" ]]; then
+        render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-crt-setup.service.tpl" \
+            "${user_service_dir}/emu-sff-crt-mode.service" "CRT_SCRIPT_PATH=${crt_script_path}"
+    else
+        rm -f "${user_service_dir}/emu-sff-crt-mode.service"
+    fi
 
-    chown -R "${DESKTOP_USER}:${DESKTOP_USER}" "${user_config_dir}" "${user_service_dir}"
+    if [[ "${RETROARCH_AUTOSTART}" == "1" ]]; then
+        render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-autostart.desktop.tpl" \
+            "${autostart_dir}/emu-sff-retroarch.desktop" "RETROARCH_LAUNCHER_PATH=${launcher_path}"
+    else
+        rm -f "${autostart_dir}/emu-sff-retroarch.desktop"
+    fi
+
+    chown -R "${DESKTOP_USER}:${DESKTOP_USER}" "${user_config_dir}" "${user_service_dir}" "${autostart_dir}"
 
     if command -v runuser >/dev/null 2>&1; then
         if ! runuser -u "${DESKTOP_USER}" -- systemctl --user daemon-reload >/dev/null 2>&1; then
@@ -365,9 +492,13 @@ generate_crt_stack() {
         fi
     fi
 
-    print_warn "CRT mode auto-apply is not enabled by setup."
-    print_warn "Arm the CRT path manually with ${arm_path} only after verifying the chain on a safe display."
-    print_warn "The launcher and mode script will refuse to run while CRT_ARMED=0 in ${safety_path}."
+    if [[ "${VIDEO_OUTPUT_MODE}" == "xrandr" ]]; then
+        print_warn "CRT mode auto-apply is not enabled by setup."
+        print_warn "Arm the CRT path manually with ${arm_path} only after verifying the chain on a safe display."
+        print_warn "The launcher and mode script will refuse to run while CRT_ARMED=0 in ${safety_path}."
+    elif [[ "${RETROARCH_AUTOSTART}" == "1" ]]; then
+        print_info "RetroArch will start automatically when ${DESKTOP_USER} logs into the desktop."
+    fi
 }
 
 install_cli_launcher() {
@@ -461,7 +592,10 @@ do_setup() {
     fi
 
     if [[ "${SETUP_PROFILE}" == "full" ]]; then
-        if prompt_step "[CRT] Configure CRT + RetroArch" "Generate a reusable 2560x240 super-resolution xrandr script, RetroArch config, launcher, and user service."; then
+        if prompt_step "[CRT] Configure video output + RetroArch" "Configure the selected ${VIDEO_OUTPUT_MODE} video path, RetroArch profile, launcher, and optional desktop autostart."; then
+            if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+                configure_rpi_composite_output
+            fi
             generate_crt_stack
         else
             print_warn "Skipping CRT and RetroArch configuration."

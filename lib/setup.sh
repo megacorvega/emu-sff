@@ -494,6 +494,25 @@ configure_tty_profile_hook() {
     chown "${DESKTOP_USER}:${DESKTOP_USER}" "${profile_path}" "${hook_path}"
 }
 
+configure_retroarch_hardware_groups() {
+    local group_name group_list=""
+
+    for group_name in video render input audio; do
+        if getent group "${group_name}" >/dev/null; then
+            if [[ -n "${group_list}" ]]; then
+                group_list+=","
+            fi
+            group_list+="${group_name}"
+        fi
+    done
+
+    if [[ -n "${group_list}" ]]; then
+        usermod -aG "${group_list}" "${DESKTOP_USER}"
+        print_info "Granted ${DESKTOP_USER} access to RetroArch hardware groups: ${group_list}."
+        print_warn "${DESKTOP_USER} must log out and back in before the new groups take effect."
+    fi
+}
+
 do_tty_autostart() {
     if ! load_state_file; then
         print_error "No emu-sff installation state found. Run setup first."
@@ -643,6 +662,7 @@ generate_crt_stack() {
         render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-autostart.desktop.tpl" \
             "${autostart_dir}/emu-sff-retroarch.desktop" "RETROARCH_LAUNCHER_PATH=${launcher_path}"
         if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+            configure_retroarch_hardware_groups
             configure_tty_profile_hook
         fi
     else

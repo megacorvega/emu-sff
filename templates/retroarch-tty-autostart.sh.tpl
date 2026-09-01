@@ -7,5 +7,8 @@ if [ "$(tty 2>/dev/null)" = "/dev/tty1" ] && \
    [ "${EMU_SFF_NO_AUTOSTART:-0}" != "1" ]; then
     EMU_SFF_TTY=1
     export EMU_SFF_TTY
-    exec "__RETROARCH_LAUNCHER_PATH__"
+    "__RETROARCH_LAUNCHER_PATH__"
+    retroarch_status=$?
+    echo "RetroArch exited with status ${retroarch_status}. The tty1 shell will remain available." >&2
+    echo "To retry manually: EMU_SFF_TTY=1 __RETROARCH_LAUNCHER_PATH__" >&2
 fi

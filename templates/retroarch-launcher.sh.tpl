@@ -4,6 +4,8 @@ set -euo pipefail
 
 CRT_SAFETY_PATH="__CRT_SAFETY_PATH__"
 VIDEO_OUTPUT_MODE="__VIDEO_OUTPUT_MODE__"
+RETROARCH_CONFIG_PATH="__RETROARCH_CONFIG_PATH__"
+RETROARCH_TTY_CONFIG_PATH="__RETROARCH_TTY_CONFIG_PATH__"
 
 if [[ "${VIDEO_OUTPUT_MODE}" == "xrandr" && ! -f "${CRT_SAFETY_PATH}" ]]; then
     echo "Missing CRT safety config: ${CRT_SAFETY_PATH}" >&2
@@ -24,4 +26,9 @@ fi
 if [[ "${VIDEO_OUTPUT_MODE}" == "xrandr" ]]; then
     "__CRT_SCRIPT_PATH__"
 fi
-exec retroarch --config "__RETROARCH_CONFIG_PATH__" "$@"
+
+if [[ "${EMU_SFF_TTY:-0}" == "1" ]]; then
+    RETROARCH_CONFIG_PATH="${RETROARCH_TTY_CONFIG_PATH}"
+fi
+
+exec retroarch --config "${RETROARCH_CONFIG_PATH}" "$@"

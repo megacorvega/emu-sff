@@ -26,6 +26,20 @@ check_retroarch_autostart_file() {
     [[ -f "${autostart_path}" ]]
 }
 
+check_retroarch_tty_autostart_file() {
+    local desktop_home hook_path profile_path
+
+    desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
+    hook_path="${desktop_home}/.config/emu-sff/retroarch-tty-autostart.sh"
+    [[ -x "${hook_path}" ]] || return 1
+    for profile_path in "${desktop_home}/.profile" "${desktop_home}/.bash_profile" "${desktop_home}/.zprofile"; do
+        if [[ -f "${profile_path}" ]] && grep -q '^# BEGIN emu-sff RetroArch TTY autostart$' "${profile_path}"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 check_rpi_composite_config() {
     local boot_config cmdline_path
 
@@ -182,7 +196,12 @@ collect_status_rows() {
     fi
     printf 'CRT armed state|%s|%s\n' "${armed_state}" "${detail}"
 
-    if [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]] && [[ -n "${DESKTOP_USER:-}" ]] && check_retroarch_autostart_file; then
+    if [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]] && \
+       [[ "${VIDEO_OUTPUT_MODE:-xrandr}" == "rpi-composite" ]] && \
+       [[ -n "${DESKTOP_USER:-}" ]] && check_retroarch_tty_autostart_file; then
+        autostart_state="OK"
+        detail="enabled on tty1 and at desktop login"
+    elif [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]] && [[ -n "${DESKTOP_USER:-}" ]] && check_retroarch_autostart_file; then
         autostart_state="OK"
         detail="enabled at desktop login"
     elif [[ "${RETROARCH_AUTOSTART:-0}" == "1" ]]; then

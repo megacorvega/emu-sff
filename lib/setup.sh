@@ -453,6 +453,68 @@ do_composite_margins() {
     save_state_file
 }
 
+remove_tty_profile_hook() {
+    local desktop_home profile_path
+
+    desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
+    for profile_path in "${desktop_home}/.profile" "${desktop_home}/.bash_profile" "${desktop_home}/.zprofile"; do
+        if [[ -f "${profile_path}" ]]; then
+            sed -i '/^# BEGIN emu-sff RetroArch TTY autostart$/,/^# END emu-sff RetroArch TTY autostart$/d' "${profile_path}"
+        fi
+    done
+}
+
+configure_tty_profile_hook() {
+    local desktop_home user_config_dir hook_path profile_path login_shell
+
+    desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
+    user_config_dir="${desktop_home}/.config/emu-sff"
+    hook_path="${user_config_dir}/retroarch-tty-autostart.sh"
+
+    render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-tty-autostart.sh.tpl" "${hook_path}" \
+        "RETROARCH_LAUNCHER_PATH=${user_config_dir}/launch-retroarch-crt.sh"
+    chmod 0755 "${hook_path}"
+
+    remove_tty_profile_hook
+    profile_path="${desktop_home}/.profile"
+    login_shell="$(getent passwd "${DESKTOP_USER}" | cut -d: -f7)"
+    case "${login_shell##*/}" in
+        bash)
+            if [[ -f "${desktop_home}/.bash_profile" ]]; then
+                profile_path="${desktop_home}/.bash_profile"
+            fi
+            ;;
+        zsh) profile_path="${desktop_home}/.zprofile" ;;
+    esac
+    if [[ ! -f "${profile_path}" ]]; then
+        touch "${profile_path}"
+    fi
+    printf '\n# BEGIN emu-sff RetroArch TTY autostart\n. "%s"\n# END emu-sff RetroArch TTY autostart\n' \
+        "${hook_path}" >> "${profile_path}"
+    chown "${DESKTOP_USER}:${DESKTOP_USER}" "${profile_path}" "${hook_path}"
+}
+
+do_tty_autostart() {
+    if ! load_state_file; then
+        print_error "No emu-sff installation state found. Run setup first."
+        return 1
+    fi
+    if [[ "${VIDEO_OUTPUT_MODE}" != "rpi-composite" ]]; then
+        print_error "TTY autostart is only configured for the rpi-composite video path."
+        return 1
+    fi
+
+    RETROARCH_AUTOSTART="1"
+    generate_crt_stack
+    save_state_file
+
+    if ! retroarch --features 2>/dev/null | grep -A1 '^KMS:' | grep -qi 'yes'; then
+        print_warn "This RetroArch build did not report KMS/EGL support; direct TTY video may not start."
+    fi
+    print_info "RetroArch TTY autostart is enabled for ${DESKTOP_USER} on /dev/tty1."
+    print_info "Log out and back in on tty1 to launch it. Use tty2 or SSH for maintenance."
+}
+
 configure_rpi_composite_output() {
     local boot_config cmdline_path
 
@@ -508,7 +570,7 @@ configure_rpi_composite_output() {
 }
 
 generate_crt_stack() {
-    local desktop_home user_config_dir user_service_dir autostart_dir launcher_path crt_script_path safety_path arm_path disarm_path retroarch_config_template
+    local desktop_home user_config_dir user_service_dir autostart_dir launcher_path crt_script_path safety_path arm_path disarm_path retroarch_config_template tty_config_path
 
     desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
     if [[ -z "${desktop_home}" ]]; then
@@ -524,6 +586,7 @@ generate_crt_stack() {
     safety_path="${user_config_dir}/crt-safety.conf"
     arm_path="${user_config_dir}/arm-crt-output.sh"
     disarm_path="${user_config_dir}/disarm-crt-output.sh"
+    tty_config_path="${user_config_dir}/retroarch-composite-tty.cfg"
 
     ensure_directory "${user_config_dir}"
     ensure_directory "${user_service_dir}"
@@ -550,6 +613,7 @@ generate_crt_stack() {
     else
         rm -f "${crt_script_path}" "${safety_path}" "${arm_path}" "${disarm_path}"
         retroarch_config_template="${EMU_SFF_TEMPLATES_DIR}/retroarch-composite.cfg.tpl"
+        render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-composite-tty.cfg.tpl" "${tty_config_path}"
     fi
 
     render_template \
@@ -563,6 +627,7 @@ generate_crt_stack() {
         "${launcher_path}" \
         "CRT_SCRIPT_PATH=${crt_script_path}" \
         "RETROARCH_CONFIG_PATH=${user_config_dir}/retroarch-crt.cfg" \
+        "RETROARCH_TTY_CONFIG_PATH=${tty_config_path}" \
         "CRT_SAFETY_PATH=${safety_path}" \
         "VIDEO_OUTPUT_MODE=${VIDEO_OUTPUT_MODE}"
     chmod 0755 "${launcher_path}"
@@ -577,8 +642,13 @@ generate_crt_stack() {
     if [[ "${RETROARCH_AUTOSTART}" == "1" ]]; then
         render_template "${EMU_SFF_TEMPLATES_DIR}/retroarch-autostart.desktop.tpl" \
             "${autostart_dir}/emu-sff-retroarch.desktop" "RETROARCH_LAUNCHER_PATH=${launcher_path}"
+        if [[ "${VIDEO_OUTPUT_MODE}" == "rpi-composite" ]]; then
+            configure_tty_profile_hook
+        fi
     else
         rm -f "${autostart_dir}/emu-sff-retroarch.desktop"
+        remove_tty_profile_hook
+        rm -f "${user_config_dir}/retroarch-tty-autostart.sh"
     fi
 
     chown -R "${DESKTOP_USER}:${DESKTOP_USER}" "${user_config_dir}" "${user_service_dir}" "${autostart_dir}"

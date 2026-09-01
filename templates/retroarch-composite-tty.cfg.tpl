@@ -1,0 +1,16 @@
+# RetroArch profile for direct DRM/KMS output from a Linux virtual terminal.
+
+video_driver = "gl"
+video_context_driver = "kms-egl"
+video_fullscreen = "true"
+video_windowed_fullscreen = "false"
+video_vsync = "true"
+video_scale_integer = "false"
+video_shader_enable = "false"
+crt_switch_resolution = "false"
+aspect_ratio_index = "2"
+video_aspect_ratio = "1.333333"
+input_driver = "udev"
+input_joypad_driver = "udev"
+audio_driver = "alsa"
+menu_driver = "rgui"

@@ -6,7 +6,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 remove_user_crt_stack() {
-    local desktop_home user_config_dir user_service_path autostart_path
+    local desktop_home user_config_dir user_service_path autostart_path profile_path
 
     desktop_home="$(desktop_user_home "${DESKTOP_USER}")"
     user_config_dir="${desktop_home}/.config/emu-sff"
@@ -20,6 +20,11 @@ remove_user_crt_stack() {
 
     rm -f "${user_service_path}"
     rm -f "${autostart_path}"
+    for profile_path in "${desktop_home}/.profile" "${desktop_home}/.bash_profile" "${desktop_home}/.zprofile"; do
+        if [[ -f "${profile_path}" ]]; then
+            sed -i '/^# BEGIN emu-sff RetroArch TTY autostart$/,/^# END emu-sff RetroArch TTY autostart$/d' "${profile_path}"
+        fi
+    done
     rm -rf "${user_config_dir}"
 }
 

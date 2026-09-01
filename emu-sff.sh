@@ -133,12 +133,15 @@ main() {
             shift
             do_composite_margins "$@"
             ;;
+        tty-autostart)
+            do_tty_autostart
+            ;;
         "")
             run_interactive_utility
             ;;
         *)
             echo "Unknown command: ${1}"
-            echo "Usage: sudo ./emu-sff.sh [setup|ps2|status|uninstall|refresh|composite-margins]"
+            echo "Usage: sudo ./emu-sff.sh [setup|ps2|status|uninstall|refresh|composite-margins|tty-autostart]"
             exit 1
             ;;
     esac

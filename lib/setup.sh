@@ -406,8 +406,8 @@ apply_composite_margins() {
 
     connector="$(composite_connector_name)"
     case "${COMPOSITE_TV_NORM}" in
-        PAL|PAL-N|SECAM) mode_spec="720x576@50i" ;;
-        *) mode_spec="720x480@60i" ;;
+        PAL|PAL-N|SECAM) mode_spec="720x576@50ie" ;;
+        *) mode_spec="720x480@60ie" ;;
     esac
 
     cp -n "${cmdline_path}" "${cmdline_path}.emu-sff-backup"

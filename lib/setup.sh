@@ -665,7 +665,7 @@ generate_crt_stack() {
         print_warn "Arm the CRT path manually with ${arm_path} only after verifying the chain on a safe display."
         print_warn "The launcher and mode script will refuse to run while CRT_ARMED=0 in ${safety_path}."
     elif [[ "${RETROARCH_AUTOSTART}" == "1" ]]; then
-        print_info "RetroArch will start automatically when ${DESKTOP_USER} logs into the desktop."
+        print_info "RetroArch will start automatically when ${DESKTOP_USER} logs into tty1 or the desktop."
     fi
 }
 

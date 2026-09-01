@@ -133,6 +133,11 @@ render_template() {
     local sed_args=()
     local pair key value
 
+    if (( $# == 0 )); then
+        cp "${template_path}" "${destination_path}"
+        return
+    fi
+
     for pair in "$@"; do
         key="${pair%%=*}"
         value="${pair#*=}"
